@@ -1,0 +1,49 @@
+services:
+  # --- Service 1: Task Database (MongoDB) ---
+  task-mongodb:
+    image: mongo:7
+    container_name: task-mongodb
+    restart: always
+    ports:
+      # Map host port 27018 to container port 27017
+      # This prevents conflict with the Team Service mongo (which is on 27017)
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_DB_PASSWORD}
+    volumes:
+      # ✅ PERSISTENCE: Map the named volume to the container's data directory
+      - task-mongo-data:/data/db
+    networks:
+      - pms-network
+    env_file:
+      - .env
+
+  # --- Service 2: Task Service ---
+  task-service:
+    build: .
+    container_name: task-service
+    restart: on-failure
+    ports:
+      - "8082:8082" # Service runs on 8082
+    environment:
+      # Internal connection uses the service name 'task-mongodb' and internal port 27017
+      SPRING_DATA_MONGODB_URI: mongodb://root:${MONGO_DB_PASSWORD}@task-mongodb:27017/pms_task_service?authSource=admin
+
+      # Shared JWT Secret
+      APPLICATION_SECURITY_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    networks:
+      - pms-network
+    depends_on:
+      - task-mongodb
+    env_file:
+      - .env
+
+# --- Networks ---
+networks:
+  pms-network:
+    driver: bridge
+
+# --- Volumes ---
+volumes:
+  task-mongo-data: # ✅ Define the volume here

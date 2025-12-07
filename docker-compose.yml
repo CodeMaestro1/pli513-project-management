@@ -1,0 +1,110 @@
+services:
+  # --- 1. User Service & DB ---
+  mysql-db:
+    image: mysql:8.0
+    container_name: mysql-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: pms_user_service
+    ports:
+      - "3307:3306"
+    volumes:
+      - user-db-data:/var/lib/mysql
+    networks:
+      - pms-network
+    env_file: .env
+
+  user-service:
+    build: ./user-service
+    container_name: user-service
+    restart: on-failure
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/pms_user_service
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQLDialect
+      APPLICATION_SECURITY_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    networks:
+      - pms-network
+    depends_on:
+      - mysql-db
+    env_file: .env
+
+  # --- 2. Team Service & DB ---
+  mongo-db:
+    image: mongo:7
+    container_name: mongo-db
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_DB_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - pms-network
+    env_file: .env
+
+  team-service:
+    build: ./team-service
+    container_name: team-service
+    restart: on-failure
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://root:${MONGO_DB_PASSWORD}@mongo-db:27017/pms_team_service?authSource=admin
+      APPLICATION_SECURITY_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    networks:
+      - pms-network
+    depends_on:
+      - mongo-db
+    env_file: .env
+
+  # --- 3. Task Service & DB ---
+  task-mongodb:
+    image: mongo:7
+    container_name: task-mongodb
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_DB_PASSWORD}
+    volumes:
+      - task-mongo-data:/data/db
+    networks:
+      - pms-network
+    env_file: .env
+
+  task-service:
+    build: ./task-service
+    container_name: task-service
+    restart: on-failure
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://root:${MONGO_DB_PASSWORD}@task-mongodb:27017/pms_task_service?authSource=admin
+      APPLICATION_SECURITY_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    networks:
+      - pms-network
+    depends_on:
+      - task-mongodb
+    env_file: .env
+
+  # --- 4. Frontend (The Gateway) ---
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "80:80" # Access the app at http://localhost
+    networks:
+      - pms-network
+    depends_on:
+      - user-service
+      - team-service
+      - task-service
+
+networks:
+  pms-network:
+    driver: bridge
+
+volumes:
+  user-db-data:
+  mongo-data:
+  task-mongo-data:

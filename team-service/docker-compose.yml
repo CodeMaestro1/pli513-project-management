@@ -1,0 +1,39 @@
+services:
+  # --- Service 1: MongoDB Database ---
+  mongodb:
+    image: mongo:7
+    container_name: mongo-db
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_DB_PASSWORD}
+    networks:
+      - pms-network
+    env_file:
+      - .env
+
+  # --- Service 2: Team Service ---
+  team-service:
+    build: .
+    container_name: team-service
+    restart: on-failure
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://root:${MONGO_DB_PASSWORD}@mongodb:27017/pms_team_service?authSource=admin
+
+      #Use the JWT variable
+      APPLICATION_SECURITY_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    networks:
+      - pms-network
+    depends_on:
+      - mongodb
+    env_file:
+      - .env
+
+# --- Define the shared network ---
+networks:
+  pms-network:
+    driver: bridge
