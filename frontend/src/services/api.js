@@ -1,23 +1,17 @@
-import axios from 'axios';
+import axios from "axios";
 
-const userBase = import.meta.env.VITE_USER_API || '/api/v1';
-const teamBase = import.meta.env.VITE_TEAM_API || '/api/v1';
-const taskBase = import.meta.env.VITE_TASK_API || '/api/v1';
+// Use empty base URL so request paths are absolute.
+// Previously "/api" caused URLs like "/api/api/v1/...".
+const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
-export const createClient = (baseURL, getToken) => {
-  const client = axios.create({ baseURL });
-  client.interceptors.request.use((config) => {
-    const token = getToken?.();
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-    return config;
-  });
-  return client;
-};
+export const userApi = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
+});
 
-// Simple getters provided here; AuthContext holds the token
-let tokenGetter = () => localStorage.getItem('token');
-export const setTokenGetter = (fn) => { tokenGetter = fn; };
-
-export const userApi = createClient(userBase, () => tokenGetter());
-export const teamApi = createClient(teamBase, () => tokenGetter());
-export const taskApi = createClient(taskBase, () => tokenGetter());
+userApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});

@@ -19,9 +19,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: 'http://localhost:80',
+        // Proxy API calls to the Nginx frontend (port 80),
+        // which forwards to internal services.
+        target: 'http://localhost',
         changeOrigin: true,
-        rewrite: (path) => path,
+        secure: false,
       },
     },
   },

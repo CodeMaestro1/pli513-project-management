@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
 
-export function Login() {
+export const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
