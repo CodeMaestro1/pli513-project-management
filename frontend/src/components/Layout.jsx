@@ -17,7 +17,7 @@ const Layout = () => {
     return (
         <div className="min-h-screen bg-gray-100">
             {/* Navigation Bar */}
-            <nav className="bg-blue-600 text-white shadow-lg">
+            <nav style={{ display: 'flex', gap: '12px', padding: '8px' }}>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         <div className="flex items-center">
@@ -26,22 +26,34 @@ const Layout = () => {
                                 <Link to="/dashboard" className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-500 ${isActive('/dashboard')}`}>Dashboard</Link>
                                 <Link to="/teams" className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-500 ${isActive('/teams')}`}>Teams</Link>
                                 <Link to="/tasks" className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-500 ${isActive('/tasks')}`}>My Tasks</Link>
-                                {user?.role === 'ADMIN' && (
-                                    <Link to="/admin" className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-500 ${isActive('/admin')}`}>Admin</Link>
-                                )}
+                                {(() => {
+                                    const arr = user ? (user.authorities || user.roles || []) : [];
+                                    const normalize = (v) => String(v).toUpperCase();
+                                    const matchesAdmin = (v) => {
+                                        const n = normalize(v);
+                                        return n === 'ADMIN' || n === 'ROLE_ADMIN';
+                                    };
+                                    const hasAdminInArray = Array.isArray(arr)
+                                        ? arr.some(r => matchesAdmin(r.role || r.authority || r))
+                                        : false;
+                                    const hasAdminInRole = user?.role ? matchesAdmin(user.role) : false;
+                                    const isAdmin = hasAdminInArray || hasAdminInRole;
+                                    return isAdmin ? (
+                                        <Link to="/admin/users" className={`px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-500 ${isActive('/admin/users')}`}>Admin Approvals</Link>
+                                    ) : null;
+                                })()}
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
                             <div className="text-sm text-right">
                                 <p className="font-semibold">{user?.firstName} {user?.lastName}</p>
-                                <p className="text-xs text-blue-200">{user?.role}</p>
+                                <p className="text-xs text-blue-200">{user?.role || (user?.roles ? user.roles.map(r => r.role || r.authority || r).join(', ') : '')}</p>
                             </div>
-                            <button
-                                onClick={handleLogout}
-                                className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm font-bold"
-                            >
-                                Logout
-                            </button>
+                            {!user ? (
+                                <Link to="/login" className="bg-blue-500 hover:bg-blue-600 px-3 py-1 rounded text-sm font-bold">Login</Link>
+                            ) : (
+                                <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm font-bold">Logout</button>
+                            )}
                         </div>
                     </div>
                 </div>

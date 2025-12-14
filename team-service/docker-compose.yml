@@ -22,7 +22,7 @@ services:
     ports:
       - "8081:8081"
     environment:
-      SPRING_DATA_MONGODB_URI: mongodb://root:${MONGO_DB_PASSWORD}@mongodb:27017/pms_team_service?authSource=admin
+      SPRING_DATA_MONGODB_URI: mongodb://root:${MONGO_DB_PASSWORD}@mongo-db:27017/pms_team_service?authSource=admin
 
       #Use the JWT variable
       APPLICATION_SECURITY_JWT_SECRET_KEY: ${JWT_SECRET_KEY}

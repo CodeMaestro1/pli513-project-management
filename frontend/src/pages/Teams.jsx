@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useContext } from 'react';
-import axios from 'axios';
-import { AuthContext } from '../context/AuthContext';
+import { AuthContext } from '../context/AuthContext.jsx';
+import { teamService } from '../services/teams';
+import { userApi } from '../services/api';
 
 const Teams = () => {
     const { user } = useContext(AuthContext);
@@ -26,11 +27,8 @@ const Teams = () => {
     useEffect(() => {
         const loadTeams = async () => {
             try {
-                // Admins see all teams? For now, let's keep it consistent with "My Teams"
-                // or you can change to '/api/v1/teams' if you implemented the getAllTeams endpoint.
-                const endpoint = '/api/v1/teams/my-teams';
-                const res = await axios.get(endpoint);
-                setTeams(res.data);
+                const res = await teamService.listMyTeams();
+                setTeams(res);
             } catch (err) {
                 console.error("Failed to fetch teams", err);
             } finally {
@@ -46,8 +44,8 @@ const Teams = () => {
         setShowModal(true);
         if (user.role === 'ADMIN' && users.length === 0) {
             try {
-                const res = await axios.get('/api/v1/admin/users');
-                setUsers(res.data);
+            const res = await userApi.get('/admin/users');
+            setUsers(res.data);
             } catch (err) {
                 console.error("Failed to load users for dropdown", err);
                 setError("Could not load users list.");
@@ -62,7 +60,7 @@ const Teams = () => {
         setError('');
 
         try {
-            await axios.post('/api/v1/teams', {
+            await teamService.create({
                 name: formData.name,
                 description: formData.description,
                 teamLeaderId: Number(formData.teamLeaderId) // Ensure it's a Long/Number
@@ -73,8 +71,8 @@ const Teams = () => {
             setFormData({ name: '', description: '', teamLeaderId: '' });
 
             // Reload teams to show the new one
-            const res = await axios.get('/api/v1/teams/my-teams');
-            setTeams(res.data);
+            const res = await teamService.list();
+            setTeams(res);
 
         } catch (err) {
             console.error(err);
@@ -91,13 +89,15 @@ const Teams = () => {
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-gray-800">Teams</h1>
-                {user?.role === 'ADMIN' && (
-                    <button
-                        onClick={handleOpenModal}
-                        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-                    >
-                        + Create New Team
-                    </button>
+                {user?.role === 'ADMIN' ? (
+                  <button
+                      onClick={handleOpenModal}
+                      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                  >
+                      + Create New Team
+                  </button>
+                ) : (
+                  <span className="text-sm text-gray-500">Only admins can create teams</span>
                 )}
             </div>
 

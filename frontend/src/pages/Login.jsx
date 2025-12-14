@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { AuthContext } from '../context/AuthContext';
+import { AuthContext } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
@@ -7,7 +7,7 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
-    const { login } = useContext(AuthContext);
+    const { login, error: authError } = useContext(AuthContext);
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -19,7 +19,7 @@ const Login = () => {
         if (result.success) {
             navigate('/dashboard'); // Redirect to dashboard on success
         } else {
-            setError(result.message);
+            setError(result.message || authError || 'Login failed');
         }
     };
 
@@ -59,6 +59,9 @@ const Login = () => {
                         <button className="px-6 py-2 mt-4 text-white bg-blue-600 rounded-lg hover:bg-blue-900 w-full">Login</button>
                     </div>
                 </form>
+                <div className="text-sm text-gray-600 mt-3 text-center">
+                    Don't have an account? <a href="/register" className="text-blue-600">Sign up</a>
+                </div>
             </div>
         </div>
     );

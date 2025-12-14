@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { AuthContext } from '../context/AuthContext';
-import axios from 'axios';
+import { AuthContext } from '../context/AuthContext.jsx';
+import { teamService } from '../services/teams';
+import { taskService } from '../services/tasks';
 
 const Dashboard = () => {
     const { user, logout } = useContext(AuthContext);
@@ -15,16 +16,12 @@ const Dashboard = () => {
     useEffect(() => {
         const fetchDashboardData = async () => {
             try {
-                // 1. Fetch My Teams
-                const teamsRes = await axios.get('/api/v1/teams/my-teams');
-
-                // 2. Fetch My Tasks
-                const tasksRes = await axios.get('/api/v1/tasks/my-tasks');
-                const tasks = tasksRes.data;
+                const teams = await teamService.listMyTeams();
+                const tasks = await taskService.listMyTasks();
 
                 // 3. Calculate Stats
                 setStats({
-                    teamsCount: teamsRes.data.length,
+                    teamsCount: Array.isArray(teams) ? teams.length : 0,
                     todo: tasks.filter(t => t.status === 'TODO').length,
                     inProgress: tasks.filter(t => t.status === 'IN_PROGRESS').length,
                     done: tasks.filter(t => t.status === 'DONE').length

@@ -1,50 +1,56 @@
-import React, { createContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { createContext, useState, useEffect, useMemo, useContext } from 'react';
+import { authService } from '../services/auth';
 
 export const AuthContext = createContext(null);
+export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [token, setToken] = useState(localStorage.getItem('token'));
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    // 1. Setup Axios & Fetch User Profile
+    // Load profile when token changes
     useEffect(() => {
         const loadUser = async () => {
-            if (token) {
-                axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-                localStorage.setItem('token', token);
-
-                try {
-                    // ✅ Fetch User Profile
-                    const res = await axios.get('/api/v1/users/me');
-                    setUser(res.data);
-                } catch (error) {
-                    console.error("Failed to load user", error);
-                    logout(); // Token is invalid/expired
-                }
-            } else {
-                delete axios.defaults.headers.common['Authorization'];
-                localStorage.removeItem('token');
+            setLoading(true);
+            setError(null);
+            if (!token) {
                 setUser(null);
+                localStorage.removeItem('token');
+                setLoading(false);
+                return;
             }
-            setLoading(false);
+            localStorage.setItem('token', token);
+            try {
+                const me = await authService.me(token);
+                setUser(me);
+            } catch (e) {
+                setError(e?.message || 'Failed to load user');
+                logout();
+            } finally {
+                setLoading(false);
+            }
         };
-
         void loadUser();
     }, [token]);
 
     const login = async (username, password) => {
+        setLoading(true);
+        setError(null);
         try {
-            const res = await axios.post('/api/v1/auth/login', { username, password });
-            setToken(res.data.token);
+            const { token: jwt, user: profile } = await authService.login(username, password);
+            setToken(jwt);
+            if (profile) setUser(profile);
             return { success: true };
         } catch (error) {
-            console.error("Login failed", error);
+            setError(error?.message || 'Login failed');
             return {
                 success: false,
-                message: error.response?.data?.message || "Login failed"
+                message: error?.message || 'Login failed',
             };
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -54,8 +60,18 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('token');
     };
 
+    const value = useMemo(() => ({
+        token,
+        user,
+        login,
+        logout,
+        loading,
+        error,
+        isAuthenticated: !!token,
+    }), [token, user, loading, error]);
+
     return (
-        <AuthContext.Provider value={{ token, user, login, logout, loading }}>
+        <AuthContext.Provider value={value}>
             {!loading && children}
         </AuthContext.Provider>
     );
