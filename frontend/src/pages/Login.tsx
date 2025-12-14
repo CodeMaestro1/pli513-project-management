@@ -11,14 +11,14 @@ export function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
-  const { login, error, loading, isAuthenticated } = useAuth();
+  const { login, error, loading} = useAuth();
   
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const result = await login(username, password);
     if (result?.success) {
-      navigate("/");
+      navigate("/Placeholder");
     }
   };
 
