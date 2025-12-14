@@ -18,7 +18,7 @@ public class TaskRequest {
     private String description;
     private Priority priority;
     private LocalDateTime dueDate;
-    private String teamId;      // Required for creation
-    private Long assignedToId;  // Optional on creation
-    private TaskStatus status;  // Optional (defaults to TODO)
+    private String teamId; // Required for creation
+    private Long assignedToId; // Optional on creation
+    private TaskStatus status; // Optional (defaults on creation)
 }
