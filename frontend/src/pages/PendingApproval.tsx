@@ -1,17 +1,20 @@
 import { Clock, Mail, CheckCircle2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLocation } from "react-router-dom";
 
 interface PendingApprovalProps {
-  userEmail?: string;
   onBackToHome: () => void;
 }
 
-export function PendingApproval({ userEmail, onBackToHome }: PendingApprovalProps) {
+export function PendingApproval({ onBackToHome }: PendingApprovalProps) {
+  const location = useLocation();
+  const userEmail = location.state?.userEmail;
+
   return (
     <div className="w-full max-w-2xl mx-auto">
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
         {/* Header Section */}
-        <div className="bg-linears-to-r from-amber-400 to-amber-500 p-8 text-center text-white">
+        <div className="bg-gradient-to-r from-amber-400 to-amber-500 p-8 text-center text-white">
           <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
             <Clock className="w-10 h-10" />
           </div>
@@ -50,7 +53,7 @@ export function PendingApproval({ userEmail, onBackToHome }: PendingApprovalProp
 
             {/* What's Next Section */}
             <div className="space-y-4">
-              <h2 className="text-xl">What happens next?</h2>
+              <h2 className="text-xl text-slate-800">What happens next?</h2>
               
               <div className="space-y-3">
                 <div className="flex gap-3">
@@ -58,7 +61,7 @@ export function PendingApproval({ userEmail, onBackToHome }: PendingApprovalProp
                     1
                   </div>
                   <div>
-                    <h4 className="font-medium mb-1">Admin Review</h4>
+                    <h4 className="font-medium text-slate-800 mb-1">Admin Review</h4>
                     <p className="text-sm text-slate-600">
                       Our team will review your registration request. This typically takes 1-2 business days.
                     </p>
@@ -70,7 +73,7 @@ export function PendingApproval({ userEmail, onBackToHome }: PendingApprovalProp
                     2
                   </div>
                   <div>
-                    <h4 className="font-medium mb-1">Email Notification</h4>
+                    <h4 className="font-medium text-slate-800 mb-1">Email Notification</h4>
                     <p className="text-sm text-slate-600">
                       You'll receive an email notification once your account has been approved.
                     </p>
@@ -82,7 +85,7 @@ export function PendingApproval({ userEmail, onBackToHome }: PendingApprovalProp
                     3
                   </div>
                   <div>
-                    <h4 className="font-medium mb-1">Start Using the Platform</h4>
+                    <h4 className="font-medium text-slate-800 mb-1">Start Using the Platform</h4>
                     <p className="text-sm text-slate-600">
                       After approval, you can log in and start managing your projects immediately.
                     </p>

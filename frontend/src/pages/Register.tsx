@@ -20,7 +20,8 @@ function getErrorMessage(err: unknown): string {
 export function Register() {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -31,27 +32,23 @@ export function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    
+
     if (password !== confirmPassword) {
       setError("Passwords don't match");
       return;
     }
-    
+
     if (!agreeToTerms) {
       setError("Please agree to the terms and conditions");
       return;
     }
 
-    const nameParts = fullName.trim().split(/\s+/);
-    const firstName = nameParts[0] ?? "";
-    const lastName = nameParts.slice(1).join(" ") || "";
-
     if (!username.trim()) {
       setError("Username is required");
       return;
     }
-    if (!firstName || !lastName) {
-      setError("Please enter your full name (first and last)");
+    if (!firstName.trim() || !lastName.trim()) {
+      setError("Both first name and last name are required");
       return;
     }
 
@@ -61,10 +58,12 @@ export function Register() {
         username: username.trim(),
         email: email.trim(),
         password,
-        firstName,
-        lastName,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
       });
-      navigate("/login", { replace: true });
+
+      // Navigate to the PendingApproval page after successful registration
+      navigate("/pending-approval", { state: { userEmail: email.trim() } });
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {
@@ -105,97 +104,115 @@ export function Register() {
       </div>
 
       {/* Right Panel - Register Form */}
-      <div className="p-12 flex flex-col justify-center">
+      <div className="p-8 flex flex-col justify-center">
         <div className="max-w-sm mx-auto w-full">
-          <div className="mb-8">
-            <h2 className="text-3xl mb-2">Create Account</h2>
-            <p className="text-slate-600">
+          <div className="mb-6">
+            <h2 className="text-2xl mb-1">Create Account</h2>
+            <p className="text-slate-600 text-sm">
               Sign up to get started with your projects
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="username">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1">
+              <Label htmlFor="username" className="text-sm">
                 Username
               </Label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
                   id="username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Choose a username"
-                  className="pl-11"
+                  className="pl-10 py-2 text-sm"
                   required
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="fullName">
-                Full Name
-              </Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <Input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Enter your full name"
-                  className="pl-11"
-                  required
-                />
+            <div className="flex gap-3">
+              {/* First Name Field */}
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="firstName" className="text-sm">First Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    id="firstName"
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="First Name"
+                    className="pl-10 py-2 text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Last Name Field */}
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="lastName" className="text-sm">Last Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    id="lastName"
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Last Name"
+                    className="pl-10 py-2 text-sm"
+                    required
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">
+            <div className="space-y-1">
+              <Label htmlFor="email" className="text-sm">
                 Email Address
               </Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
-                  className="pl-11"
+                  className="pl-10 py-2 text-sm"
                   required
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <div className="space-y-1">
+              <Label htmlFor="password" className="text-sm">Password</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Create a password"
-                  className="pl-11"
+                  className="pl-10 py-2 text-sm"
                   required
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <div className="space-y-1">
+              <Label htmlFor="confirmPassword" className="text-sm">Confirm Password</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
                   id="confirmPassword"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm your password"
-                  className="pl-11"
+                  className="pl-10 py-2 text-sm"
                   required
                 />
               </div>
@@ -207,7 +224,7 @@ export function Register() {
                 onChange={(e) => setAgreeToTerms((e.target as HTMLInputElement).checked)}
                 className="mt-1"
               />
-              <label className="text-sm text-slate-600 cursor-pointer">
+              <label className="text-xs text-slate-600 cursor-pointer">
                 I agree to the{" "}
                 <a
                   href="#"
@@ -228,20 +245,20 @@ export function Register() {
             <Button
               type="submit"
               disabled={submitting}
-              className="w-full py-3 gap-2 group"
+              className="w-full py-2 gap-2 group text-sm"
             >
               {submitting ? "Creating Account..." : "Create Account"}
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Button>
           </form>
 
           {error && (
-            <div className="mt-4 text-sm text-red-600 text-center">
+            <div className="mt-3 text-xs text-red-600 text-center">
               {error}
             </div>
           )}
 
-          <div className="mt-8 text-center text-sm text-slate-600">
+          <div className="mt-6 text-center text-xs text-slate-600">
             Already have an account?{" "}
             <Link
               to="/login"
