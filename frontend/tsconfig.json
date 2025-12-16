@@ -6,6 +6,7 @@
   ],
 
   "compilerOptions": {
+    "types": ["webrtc"],
     "jsx": "react-jsx",
     //"include": ["**/*.ts", "**/*.tsx", "**/*.d.ts"],
     "baseUrl": ".",
