@@ -18,7 +18,7 @@ export const Login = () => {
     e.preventDefault();
     const result = await login(username, password);
     if (result?.success) {
-      navigate("/Placeholder");
+      navigate("/dashboard");
     }
   };
 

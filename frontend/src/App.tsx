@@ -2,6 +2,7 @@ import './App.css';
 
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { Login } from "./pages/Login.tsx";
+import { Dashboard } from "./pages/Dashboard.tsx";
 import Placeholder from "./pages/Placeholder.tsx";
 import { Register } from "./pages/Register.tsx";
 import { PendingApproval } from './pages/PendingApproval.tsx';  
@@ -14,12 +15,10 @@ function PrivateRoute({ children }: { children: React.JSX.Element }) {
   return isAuthenticated ? children : <Navigate to="/login" replace />;
 }
 
-// New function to protect the PendingApproval route
 function ProtectedPendingApproval({ children }: { children: React.JSX.Element }) {
   const location = useLocation();
   const hasState = location.state?.userEmail;
 
-  // Redirect to home if the required state is missing
   return hasState ? children : <Navigate to="/" replace />;
 }
 
@@ -27,8 +26,6 @@ export default function App() {
   const navigate = useNavigate();
   const handleSignIn = () => navigate("/login");
   const handleSignUp = () => navigate("/register");
-
-  // Function to navigate back to the home page
   const handleBackToHome = () => navigate("/");
 
   return (
@@ -44,6 +41,17 @@ export default function App() {
               <PendingApproval onBackToHome={handleBackToHome} />
             </ProtectedPendingApproval>
           } 
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <PrivateRoute>
+              <Dashboard
+                onProfileClick={() => console.log("Profile clicked")}
+                onLogout={() => console.log("Logout clicked")}
+              />
+            </PrivateRoute>
+          }
         />
         <Route path="/Placeholder" element={<PrivateRoute><Placeholder /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
