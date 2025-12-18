@@ -19,7 +19,9 @@ export type User = {
     email: string;
     firstName: string;
     lastName: string;
-    role?: 'admin' | 'leader' | 'member';
+    status?: 'ACTIVE' | 'PENDING' | 'DISABLED';
+    role?: 'ADMIN' | 'LEADER' | 'MEMBER';
+    createdAt: string;
 }
 
 function getErrorMessage(err: unknown): string {

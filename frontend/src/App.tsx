@@ -3,6 +3,7 @@ import './App.css';
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { Login } from "./pages/Login.tsx";
 import { Dashboard } from "./pages/Dashboard.tsx";
+import { Profile } from "./pages/Profile.tsx";
 import Placeholder from "./pages/Placeholder.tsx";
 import { Register } from "./pages/Register.tsx";
 import { PendingApproval } from './pages/PendingApproval.tsx';  
@@ -24,9 +25,15 @@ function ProtectedPendingApproval({ children }: { children: React.JSX.Element })
 
 export default function App() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
+
   const handleSignIn = () => navigate("/login");
   const handleSignUp = () => navigate("/register");
   const handleBackToHome = () => navigate("/");
+  const handleLogout = () => {
+    logout();
+    navigate("/", { replace: true });
+  };
 
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
@@ -47,9 +54,17 @@ export default function App() {
           element={
             <PrivateRoute>
               <Dashboard
-                onProfileClick={() => console.log("Profile clicked")}
-                onLogout={() => console.log("Logout clicked")}
+                onProfileClick={() => navigate("/profile")}
+                onLogout={handleLogout}
               />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <PrivateRoute>
+              <Profile />
             </PrivateRoute>
           }
         />

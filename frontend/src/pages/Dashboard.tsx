@@ -6,7 +6,6 @@ import type { Task } from "@/types/task";
 import { statusFriendlyNames, priopirityFriendlyNames } from "@/lib/mappings";
 import { useAuth } from "@/context/AuthContext";
 import { taskService } from "@/services/tasks";
-
 interface DashboardProps {
   onProfileClick: () => void;
   onLogout: () => void;
@@ -99,12 +98,12 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100">
       {/* Top Navigation Bar */}
       <nav className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-sky-500 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-linear-to-br from-sky-400 to-sky-500 rounded-lg flex items-center justify-center">
               <div className="w-6 h-6 border-2 border-white rounded-md rotate-45"></div>
             </div>
             <div>
@@ -130,7 +129,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
               onClick={onProfileClick}
               className="flex items-center gap-3 hover:bg-slate-100 rounded-lg p-2 transition-colors group"
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-sky-500 rounded-lg flex items-center justify-center text-white shadow-md">
+              <div className="w-10 h-10 bg-linear-to-br from-sky-400 to-sky-500 rounded-lg flex items-center justify-center text-white shadow-md">
                 {userInitials}
               </div>
               <div className="text-left hidden md:block">
@@ -482,7 +481,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
               { name: "Marketing Campaign", progress: 90, team: 4, status: "Almost Done" }
             ].map((project, index) => (
               <div key={index} className="flex items-center gap-4 p-4 rounded-lg border border-slate-200 hover:border-sky-300 hover:shadow-md transition-all">
-                <div className="w-12 h-12 bg-gradient-to-br from-sky-400 to-sky-500 rounded-lg flex items-center justify-center text-white flex-shrink-0">
+                <div className="w-12 h-12 bg-linear-to-br from-sky-400 to-sky-500 rounded-lg flex items-center justify-center text-white shrink-0">
                   <FolderKanban className="w-6 h-6" />
                 </div>
                 
@@ -492,7 +491,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                     <div className="flex-1 max-w-xs">
                       <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all"
+                          className="h-full bg-linear-to-r from-sky-400 to-sky-500 rounded-full transition-all"
                           style={{ width: `${project.progress}%` }}
                         ></div>
                       </div>
@@ -501,7 +500,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 flex-shrink-0">
+                <div className="flex items-center gap-4 shrink-0">
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-slate-400" />
                     <span className="text-sm text-slate-600">{project.team}</span>
