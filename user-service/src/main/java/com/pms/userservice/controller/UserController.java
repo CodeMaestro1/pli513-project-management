@@ -18,13 +18,15 @@ public class UserController {
     /**
      * Retrieves the profile information of the currently authenticated user.
      *
-     * @param authentication The Spring Security Authentication object (injected automatically).
+     * @param authentication The Spring Security Authentication object (injected
+     *                       automatically).
      * @return A DTO with the user's information.
      */
     @GetMapping("/me")
     public ResponseEntity<RegisterResponse> getMyProfile(Authentication authentication) {
         // 1. Get the authenticated User object from the security context
-        // This cast works because we set our custom User object in the JwtAuthenticationFilter
+        // This cast works because we set our custom User object in the
+        // JwtAuthenticationFilter
         User currentUser = (User) authentication.getPrincipal();
 
         // 2. Map the User entity to our response DTO
@@ -36,6 +38,7 @@ public class UserController {
                 .lastName(currentUser.getLastName())
                 .role(currentUser.getRole())
                 .status(currentUser.getStatus())
+                .createdAt(currentUser.getCreatedAt())
                 .build();
 
         return ResponseEntity.ok(profile);

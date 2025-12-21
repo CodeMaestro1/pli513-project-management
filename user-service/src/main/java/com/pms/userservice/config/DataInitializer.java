@@ -44,7 +44,7 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         if (!userRepository.existsByUsername("testUser")){
-            User admin = User.builder()
+            User testUser = User.builder()
                     .username("testUser")
                     .email("test@pms.com") // Dummy email
                     .password(passwordEncoder.encode("test123")) // Hash the password!
@@ -55,7 +55,7 @@ public class DataInitializer implements CommandLineRunner {
                     .createdAt(LocalDateTime.now())
                     .build();
 
-            userRepository.save(admin);
+            userRepository.save(testUser);
 
             System.out.println("---------------------------------");
             System.out.println(" Test User ACCOUNT CREATED");

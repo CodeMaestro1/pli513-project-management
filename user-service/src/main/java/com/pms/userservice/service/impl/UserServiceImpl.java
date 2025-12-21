@@ -19,7 +19,6 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
 
-
     @Override
     public List<RegisterResponse> getAllUsers() {
         return userRepository.findAll()
@@ -122,8 +121,8 @@ public class UserServiceImpl implements UserService {
                 .email(user.getEmail())
                 .role(user.getRole())
                 .status(user.getStatus())
+                .createdAt(user.getCreatedAt())
                 .build();
     }
-
 
 }

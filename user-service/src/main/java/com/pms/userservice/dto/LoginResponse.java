@@ -5,6 +5,8 @@ import com.pms.userservice.model.Status;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Builder
 @Data
 public class LoginResponse {
@@ -14,4 +16,5 @@ public class LoginResponse {
     private String email;
     private Role role;
     private Status status;
+    private LocalDateTime createdAt;
 }

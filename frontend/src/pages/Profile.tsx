@@ -57,6 +57,10 @@ export function Profile({ onBack }: ProfileProps) {
     fetchData();
   }, [user]);
 
+  useEffect(() => {
+    console.log("User data:", user);
+  }, [user]);
+
   const getStatusIcon = (status: Task["status"]) => {
     switch (status) {
       case "DONE":
@@ -125,7 +129,6 @@ export function Profile({ onBack }: ProfileProps) {
               </div>
               <div className="mb-2">
                 <h1 className="text-3xl">{`${userData.firstName} ${userData.lastName}`}</h1>
-                <p className="text-slate-600">{userData.role}</p>
               </div>
             </div>
           </div>
@@ -163,7 +166,7 @@ export function Profile({ onBack }: ProfileProps) {
                 <Label>Role</Label>
                 <div className="flex items-center gap-2 text-slate-700">
                   <Briefcase className="w-4 h-4 text-slate-400" />
-                  {userData.role}
+                  <div className="capitalize">{userData.role.charAt(0).toUpperCase() + userData.role.slice(1).toLowerCase()}</div>
                 </div>
               </div>
 

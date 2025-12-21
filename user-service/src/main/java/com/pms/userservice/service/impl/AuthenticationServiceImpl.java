@@ -29,7 +29,6 @@ import com.pms.userservice.exception.AccountNotActiveException;
 @RequiredArgsConstructor
 public class AuthenticationServiceImpl implements AuthenticationService {
 
-
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -52,8 +51,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
-                .role(Role.MEMBER)          // default role
-                .status(Status.PENDING)     // admin must activate
+                .role(Role.MEMBER) // default role
+                .status(Status.PENDING) // admin must activate
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -67,6 +66,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .lastName(user.getLastName())
                 .role(user.getRole())
                 .status(user.getStatus())
+                .createdAt(user.getCreatedAt())
                 .build();
     }
 
@@ -82,9 +82,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             authManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             request.getUsername(),
-                            request.getPassword()
-                    )
-            );
+                            request.getPassword()));
         } catch (DisabledException e) {
             throw new AccountNotActiveException("Your account is pending approval or has been disabled.");
         } catch (BadCredentialsException e) {
@@ -99,7 +97,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         // 2. If authentication was successful, fetch the user
         User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found after successful authentication")); // This should not happen
+                .orElseThrow(() -> new RuntimeException("User not found after successful authentication")); // This
+                                                                                                            // should
+                                                                                                            // not
+                                                                                                            // happen
 
         // 3. Generate token
         String token = jwtService.generateToken(user);
@@ -111,6 +112,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .email(user.getEmail())
                 .role(user.getRole())
                 .status(user.getStatus())
+                .createdAt(user.getCreatedAt())
                 .token(token)
                 .build();
     }
