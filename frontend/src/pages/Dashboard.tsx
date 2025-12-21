@@ -1,4 +1,4 @@
-import { CheckSquare, Users, FolderKanban, Bell, Settings, LogOut, Clock, Circle, CheckCircle2, ChevronDown } from "lucide-react";
+import { CheckSquare, Users, FolderKanban, Bell, Settings, LogOut, Clock, Circle, CheckCircle2, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import { TaskDetail } from "./TaskDetails";
@@ -6,26 +6,101 @@ import type { Task } from "@/types/task";
 import { statusFriendlyNames, priopirityFriendlyNames } from "@/lib/mappings";
 import { useAuth } from "@/context/AuthContext";
 import { taskService } from "@/services/tasks";
+import { useTaskOperations } from "@/hooks/useTaskOperations";
+import axios from "axios"; // Needed for teams fetch
+
 interface DashboardProps {
   onProfileClick: () => void;
   onLogout: () => void;
 }
 
+// Helper for formatting dates if not already available globally
+const formatDate = (value?: string) => {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString();
+};
+
 export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  
+  // Local state for initial load loading/error
+  const [initialLoading, setInitialLoading] = useState<boolean>(false);
+  const [initialError, setInitialError] = useState<string | null>(null);
+
+  // State for tasks is managed here but updated via the hook
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
+  // State for teams (needed for the Create Task modal dropdown)
+  const [teams, setTeams] = useState<{id: string, name: string}[]>([]);
+
+  const currentUserId = user ? Number(user.id) : undefined;
+
+  // Initialize the operations hook
+  const {
+    error: opError,
+    newTask,
+    setNewTask,
+    showCreateModal: showCreateTaskModal,
+    setShowCreateModal: setShowCreateTaskModal,
+    createTask: handleCreateTaskHook,
+    deleteTask: handleDeleteTaskWrapper,
+    updateTaskStatus: handleUpdateTaskStatusWrapper
+  } = useTaskOperations(setTasks, currentUserId);
+
+  // Load Tasks on Mount
+  useEffect(() => {
+    const fetchTasks = async () => {
+      if (!isAuthenticated) return;
+      setInitialLoading(true);
+      setInitialError(null);
+      try {
+        const data = await taskService.listMyTasks();
+        setTasks(Array.isArray(data) ? data : []);
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          setInitialError(e.message);
+        } else {
+          setInitialError('Failed to load tasks');
+        }
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+    fetchTasks();
+  }, [isAuthenticated]);
+
+  // Load Teams (for the Create Task dropdown)
+  useEffect(() => {
+    const fetchTeams = async () => {
+      if (!isAuthenticated) return;
+      try {
+        // Assuming endpoint is /api/v1/teams/my-teams based on previous context
+        const res = await axios.get('/api/v1/teams/my-teams'); 
+        setTeams(res.data);
+      } catch (err) {
+        console.error("Failed to load teams for dropdown", err);
+      }
+    };
+    fetchTeams();
+  }, [isAuthenticated]);
+
+
+  // Handlers using the hook logic
+  const handleCreateTask = () => handleCreateTaskHook();
+
+  const handleDeleteTask = (taskId: string) => 
+    handleDeleteTaskWrapper(taskId, selectedTask, setSelectedTask);
+
+  // We override the local handleStatusChange to use the hook, 
+  // but we also need to close the dropdown locally.
   const handleStatusChange = (taskId: string, newStatus: Task["status"]) => {
-    setTasks(tasks.map(task => 
-      task.id === taskId ? { ...task, status: newStatus } : task
-    ));
+    handleUpdateTaskStatusWrapper(taskId, newStatus, setSelectedTask);
     setOpenDropdown(null);
   };
+
 
   const getStatusColor = (status: Task["status"]) => {
     switch (status) {
@@ -56,28 +131,19 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
   const getPriorityLabel = (priority: Task["priority"]) => {
     return priopirityFriendlyNames[priority] || "Unknown Priority";
   };
-
-  useEffect(() => {
-  const fetchTasks = async () => {
-    if (!isAuthenticated) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await taskService.listMyTasks();
-      // Assume API returns an array of Task-like objects #CHECK
-      setTasks(Array.isArray(data) ? data : []);
-    } catch (e: unknown) {
-      if (e instanceof Error) {
-        setError(e.message);
-      } else {
-        setError('Failed to load tasks');
-      }
-    } finally {
-      setLoading(false);
+  
+  const getPriorityColor = (priority: Task["priority"]) => {
+    switch (priority) {
+      case "HIGH":
+        return "text-red-500 bg-red-50 border-red-100";
+      case "MEDIUM":
+        return "text-amber-500 bg-amber-50 border-amber-100";
+      case "LOW":
+        return "text-green-500 bg-green-50 border-green-100";
+      default:
+        return "text-slate-500 bg-slate-50 border-slate-100";
     }
   };
-  fetchTasks();
-}, [isAuthenticated]);
 
   const userInitials = useMemo(() => {
     const first = (user?.firstName ?? '').trim();
@@ -96,6 +162,9 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
     ongoing: ongoingTasks.length,
     completed: completedTasks.length
   };
+
+  // Combine errors
+  const displayError = opError || initialError;
 
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100">
@@ -205,17 +274,22 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-2xl">My Tasks</h3>
-            <Button variant="outline">Add New Task</Button>
+            <Button onClick={() => setShowCreateTaskModal(true)} className="bg-sky-500 hover:bg-sky-600 text-white gap-2">
+              <Plus className="w-4 h-4" />
+              Create Task
+            </Button>
           </div>
 
-          {(authLoading || loading) && (
+          {(authLoading || initialLoading) && (
             <div className="text-slate-500">Loading tasks...</div>
           )}
-          {error && (
-            <div className="text-red-600 text-sm mb-4">{error}</div>
+          {displayError && (
+             <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg mb-4">
+                {displayError}
+             </div>
           )}
 
-          {!authLoading && !loading && !error && (
+          {!authLoading && !initialLoading && !displayError && (
           <div className="grid md:grid-cols-3 gap-6">
             {/* To Do Column */}
             <div className="space-y-3">
@@ -232,21 +306,32 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                     key={task.id}
                     className="p-4 bg-slate-50 border border-slate-200 rounded-lg hover:shadow-md transition-all group cursor-pointer"
                     onClick={(e) => {
-                      // Don't open task detail if clicking on the status dropdown
-                      if (!(e.target as HTMLElement).closest('.status-dropdown')) {
+                      if (!(e.target as HTMLElement).closest('.status-dropdown') && !(e.target as HTMLElement).closest('.delete-btn')) {
                         setSelectedTask(task);
                       }
                     }}
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <h5 className="font-medium">{task.title}</h5>
-                      <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700 border border-slate-200">
-                        {getPriorityLabel(task.priority)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs border ${getPriorityColor(task.priority)}`}>
+                          {getPriorityLabel(task.priority)}
+                        </span>
+                        <button
+                          className="delete-btn p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-red-500 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTask(task.id);
+                          }}
+                          title="Delete task"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-sm text-slate-600 mb-3">Team: {task.teamId ?? '-'}</p>
+                    <p className="text-sm text-slate-600 mb-3 line-clamp-2">{task.description}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">{task.dueDate}</span>
+                      <span className="text-xs text-slate-500">{formatDate(task.dueDate)}</span>
                       <div className="relative status-dropdown">
                         <button
                           onClick={(e) => {
@@ -315,20 +400,32 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                     key={task.id}
                     className="p-4 bg-sky-50 border border-sky-200 rounded-lg hover:shadow-md transition-all group cursor-pointer"
                     onClick={(e) => {
-                      if (!(e.target as HTMLElement).closest('.status-dropdown')) {
+                      if (!(e.target as HTMLElement).closest('.status-dropdown') && !(e.target as HTMLElement).closest('.delete-btn')) {
                         setSelectedTask(task);
                       }
                     }}
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <h5 className="font-medium">{task.title}</h5>
-                      <span className="px-2 py-0.5 rounded-full text-xs bg-sky-100 text-sky-700 border border-sky-200">
-                        {getPriorityLabel(task.priority)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs border ${getPriorityColor(task.priority)}`}>
+                          {getPriorityLabel(task.priority)}
+                        </span>
+                         <button
+                          className="delete-btn p-1 hover:bg-sky-200 rounded text-slate-400 hover:text-red-500 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTask(task.id);
+                          }}
+                          title="Delete task"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-sm text-slate-600 mb-3">Team: {task.teamId ?? '-'}</p>
+                    <p className="text-sm text-slate-600 mb-3 line-clamp-2">{task.description}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">{task.dueDate}</span>
+                      <span className="text-xs text-slate-500">{formatDate(task.dueDate)}</span>
                       <div className="relative status-dropdown">
                         <button
                           onClick={(e) => {
@@ -395,22 +492,34 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                 {completedTasks.map((task) => (
                   <div
                     key={task.id}
-                    className="p-4 bg-green-50 border border-green-200 rounded-lg hover:shadow-md transition-all group cursor-pointer"
+                    className="p-4 bg-green-50 border border-green-200 rounded-lg hover:shadow-md transition-all group cursor-pointer opacity-75"
                     onClick={(e) => {
-                      if (!(e.target as HTMLElement).closest('.status-dropdown')) {
+                      if (!(e.target as HTMLElement).closest('.status-dropdown') && !(e.target as HTMLElement).closest('.delete-btn')) {
                         setSelectedTask(task);
                       }
                     }}
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <h5 className="font-medium">{task.title}</h5>
-                      <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 border border-green-200">
-                        {getPriorityLabel(task.priority)}
-                      </span>
+                      <h5 className="font-medium line-through decoration-slate-400">{task.title}</h5>
+                       <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs border ${getPriorityColor(task.priority)}`}>
+                          {getPriorityLabel(task.priority)}
+                        </span>
+                         <button
+                          className="delete-btn p-1 hover:bg-green-200 rounded text-slate-400 hover:text-red-500 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTask(task.id);
+                          }}
+                          title="Delete task"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                       </div>
                     </div>
-                    <p className="text-sm text-slate-600 mb-3">Team: {task.teamId ?? '-'}</p>
+                    <p className="text-sm text-slate-600 mb-3 line-clamp-2">{task.description}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">{task.dueDate}</span>
+                      <span className="text-xs text-slate-500">{formatDate(task.dueDate)}</span>
                       <div className="relative status-dropdown">
                         <button
                           onClick={(e) => {
@@ -466,6 +575,104 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
           </div>
           )}
         </div>
+
+        {/* Create Task Modal */}
+        {showCreateTaskModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl">Create New Task</h3>
+                <button
+                  onClick={() => setShowCreateTaskModal(false)}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-slate-600" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Title</label>
+                  <input
+                    type="text"
+                    value={newTask.title}
+                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                    placeholder="e.g., Update documentation"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Description</label>
+                  <textarea
+                    value={newTask.description}
+                    onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                    rows={3}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Priority</label>
+                    <select
+                      value={newTask.priority}
+                      onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as Task["priority"] })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-white"
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Due Date</label>
+                    <input
+                      type="date"
+                      value={newTask.dueDate}
+                      onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Team (optional)</label>
+                    <select
+                      value={newTask.teamId}
+                      onChange={(e) => setNewTask({ ...newTask, teamId: e.target.value })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-white"
+                    >
+                      <option value="">No team (Private)</option>
+                      {teams.map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    className="flex-1 bg-sky-500 hover:bg-sky-600 text-white"
+                    disabled={!newTask.title || !newTask.dueDate}
+                    onClick={() => {
+                      void handleCreateTask();
+                    }}
+                  >
+                    Create Task
+                  </Button>
+                  <Button className="flex-1" variant="outline" onClick={() => setShowCreateTaskModal(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Recent Projects */}
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
@@ -524,7 +731,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
             <p className="text-sm text-slate-600">Start a new project and invite your team</p>
           </button>
 
-          <button className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all text-left group">
+          <button onClick={() => setShowCreateTaskModal(true)} className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all text-left group">
             <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-amber-500 transition-colors">
               <CheckSquare className="w-6 h-6 text-amber-500 group-hover:text-white transition-colors" />
             </div>

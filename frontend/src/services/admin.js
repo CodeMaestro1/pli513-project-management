@@ -1,16 +1,23 @@
 import { userApi } from './api';
 
 export const adminService = {
-  async listPendingUsers() {
-    const res = await userApi.get('/admin/users/pending');
+  async listUsers() {
+    const res = await userApi.get('/api/v1/admin/users');
     return res.data;
   },
   async approveUser(userId) {
-    const res = await userApi.post(`/admin/users/${userId}/approve`);
+    const res = await userApi.patch(`/api/v1/admin/users/${userId}/approve`);
+    return res.data;
+  },
+  async disableUser(userId) {
+    const res = await userApi.patch(`/api/v1/admin/users/${userId}/disable`);
+    return res.data;
+  },
+  async updateRole(userId, role) {
+    const res = await userApi.patch(`/api/v1/admin/users/${userId}/role`, null, { params: { role } });
     return res.data;
   },
   async deleteUser(userId) {
-    const res = await userApi.delete(`/admin/users/${userId}`);
-    return res.data;
+    await userApi.delete(`/api/v1/admin/users/${userId}`);
   },
 };

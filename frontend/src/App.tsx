@@ -10,10 +10,18 @@ import { PendingApproval } from './pages/PendingApproval.tsx';
 import { useAuth } from './context/AuthContext.tsx';
 import React from 'react';
 import { Welcome } from "./pages/Welcome.tsx";
+import { AdminDashboard } from "./pages/AdminDashBoard.tsx";
 
 function PrivateRoute({ children }: { children: React.JSX.Element }) {
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? children : <Navigate to="/login" replace />;
+}
+
+function AdminRoute({ children }: { children: React.JSX.Element }) {
+  const { isAuthenticated, user, loading } = useAuth();
+  if (loading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return user?.role === 'ADMIN' ? children : <Navigate to="/dashboard" replace />;
 }
 
 function ProtectedPendingApproval({ children }: { children: React.JSX.Element }) {
@@ -25,7 +33,7 @@ function ProtectedPendingApproval({ children }: { children: React.JSX.Element })
 
 export default function App() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user, loading } = useAuth();
 
   const handleSignIn = () => navigate("/login");
   const handleSignUp = () => navigate("/register");
@@ -53,11 +61,27 @@ export default function App() {
           path="/dashboard"
           element={
             <PrivateRoute>
-              <Dashboard
+              {loading ? <div /> : user?.role === 'ADMIN' ? (
+                <Navigate to="/admin" replace />
+              ) : (
+                <Dashboard
+                  onProfileClick={() => navigate("/profile")}
+                  onLogout={handleLogout}
+                />
+              )}
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminDashboard
                 onProfileClick={() => navigate("/profile")}
                 onLogout={handleLogout}
               />
-            </PrivateRoute>
+            </AdminRoute>
           }
         />
         <Route

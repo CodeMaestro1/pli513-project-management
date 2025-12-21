@@ -89,7 +89,7 @@ public class TeamController {
 
     /**
      * Removes a member from a team.
-     * Accessible only by the Team's Leader. [cite: 117]
+     * Accessible only by the Team's Leader.
      */
     @PatchMapping("/{teamId}/remove-member")
     @PreAuthorize("@teamService.isTeamLeader(authentication, #teamId)")

@@ -19,6 +19,7 @@ declare module "@/services/tasks" {
         listMyTasks(): Promise<Task[]>;
         create(payload: CreateTaskPayload): Promise<Task>;
         update(taskId: string, payload: UpdateTaskPayload): Promise<Task>;
+        updateStatus(taskId: string, status: TaskStatus): Promise<Task>;
         remove(taskId: string): Promise<unknown>;
     };
 

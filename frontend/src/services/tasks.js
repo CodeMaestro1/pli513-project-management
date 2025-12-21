@@ -2,19 +2,23 @@ import { taskApi } from './api';
 
 export const taskService = {
   async listMyTasks() {
-    const res = await taskApi.get('/tasks/my-tasks');
+    const res = await taskApi.get('/api/v1/tasks/my-tasks');
     return res.data;
   },
   async create(payload) {
-    const res = await taskApi.post('/tasks', payload);
+    const res = await taskApi.post('/api/v1/tasks', payload);
     return res.data;
   },
   async update(taskId, payload) {
-    const res = await taskApi.put(`/tasks/${taskId}`, payload);
+    const res = await taskApi.put(`/api/v1/tasks/${taskId}`, payload);
+    return res.data;
+  },
+  async updateStatus(taskId, status) {
+    const res = await taskApi.patch(`/api/v1/tasks/${taskId}/status`, null, { params: { status } });
     return res.data;
   },
   async remove(taskId) {
-    const res = await taskApi.delete(`/tasks/${taskId}`);
+    const res = await taskApi.delete(`/api/v1/tasks/${taskId}`);
     return res.data;
   },
 };
