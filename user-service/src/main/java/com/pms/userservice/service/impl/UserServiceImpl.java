@@ -89,7 +89,7 @@ public class UserServiceImpl implements UserService {
             throw new IllegalStateException("User is already disabled.");
         }
 
-        // Business logic: You shouldn't disable a user who isn't even approved yet
+        // Business logic: Pending users are not active yet; use approve/remove instead.
         if (user.getStatus() == Status.PENDING) {
             throw new IllegalStateException("User cannot be disabled. Account is still PENDING approval.");
         }
@@ -97,6 +97,26 @@ public class UserServiceImpl implements UserService {
         user.setStatus(Status.DISABLED);
         User savedUser = userRepository.save(user);
 
+        return toUserResponse(savedUser);
+    }
+
+    @Override
+    @Transactional
+    public RegisterResponse enableUser(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+
+        if (user.getStatus() == Status.ACTIVE) {
+            throw new IllegalStateException("User is already active.");
+        }
+
+        if (user.getStatus() == Status.PENDING) {
+            throw new IllegalStateException("User cannot be activated. Account is still PENDING approval.");
+        }
+
+        // Only remaining state should be DISABLED
+        user.setStatus(Status.ACTIVE);
+        User savedUser = userRepository.save(user);
         return toUserResponse(savedUser);
     }
 
@@ -143,6 +163,17 @@ public class UserServiceImpl implements UserService {
                         .displayName(nameById.getOrDefault(id, "User #" + id))
                         .build())
                 .toList();
+    }
+
+    @Override
+    public Long getUserIdByUsername(String username) {
+        if (username == null || username.isBlank()) {
+            throw new IllegalArgumentException("Username is required");
+        }
+
+        User user = userRepository.findByUsername(username.trim())
+                .orElseThrow(() -> new UserNotFoundException("User not found with username: " + username));
+        return user.getId();
     }
 
     private RegisterResponse toUserResponse(User user) {

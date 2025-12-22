@@ -244,7 +244,7 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
       setTasksError(null);
       try {
         const [tasksRes, teamsRes] = await Promise.all([
-          taskService.listMyTasks(),
+          taskService.listAllTasks(),
           teamService.listAllTeams().catch(() => []),
         ]);
         setAllTasks(Array.isArray(tasksRes) ? tasksRes : []);
@@ -276,7 +276,7 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     void loadUsers();
   }, []);
 
-  // listMyTasks already returns tasks assigned to the current user.
+  // Admin dashboard shows all tasks.
   const myTasks = useMemo(() => allTasks, [allTasks]);
 
   const refreshUsers = async () => {
@@ -300,6 +300,18 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     setUsersError(null);
     try {
       const updated = await adminService.disableUser(userId);
+      setAdminUsers((prev) => prev.map((u) => (String(u.id) === String(userId) ? updated : u)));
+    } catch (e) {
+      setUsersError(getErrorMessage(e));
+    } finally {
+      setOpenActionMenu(null);
+    }
+  };
+
+  const handleEnableUser = async (userId: string) => {
+    setUsersError(null);
+    try {
+      const updated = await adminService.enableUser(userId);
       setAdminUsers((prev) => prev.map((u) => (String(u.id) === String(userId) ? updated : u)));
     } catch (e) {
       setUsersError(getErrorMessage(e));
@@ -813,7 +825,7 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                         <p className="text-sm text-slate-600 mb-3 line-clamp-2">{task.description}</p>
                         <div className="flex items-center justify-between">
                           <span className={`text-xs ${getPriorityColor(task.priority)}`}>
-                            {task.priority} Priority
+                            <span className="capitalize">{String(task.priority ?? "").toLowerCase()} Priority</span>
                           </span>
                           <span className="text-xs text-slate-400">{formatDate(task.dueDate)}</span>
                         </div>
@@ -852,7 +864,7 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                         <p className="text-sm text-slate-600 mb-3 line-clamp-2">{task.description}</p>
                         <div className="flex items-center justify-between">
                           <span className={`text-xs ${getPriorityColor(task.priority)}`}>
-                            {task.priority} Priority
+                            <span className="capitalize">{String(task.priority ?? "").toLowerCase()} Priority</span>
                           </span>
                           <span className="text-xs text-slate-400">{formatDate(task.dueDate)}</span>
                         </div>
@@ -891,7 +903,7 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                         <p className="text-sm text-slate-600 mb-3 line-clamp-2">{task.description}</p>
                         <div className="flex items-center justify-between">
                           <span className={`text-xs ${getPriorityColor(task.priority)}`}>
-                            {task.priority} Priority
+                            <span className="capitalize">{String(task.priority ?? "").toLowerCase()} Priority</span>
                           </span>
                           <span className="text-xs text-slate-400">{formatDate(task.dueDate)}</span>
                         </div>
@@ -966,7 +978,29 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                             <label className="block text-sm font-medium mb-2">Team (optional)</label>
                             <select
                               value={newTask.teamId}
-                              onChange={(e) => setNewTask({ ...newTask, teamId: e.target.value })}
+                              onChange={(e) => {
+                                const teamId = e.target.value;
+                                if (!teamId) {
+                                  setNewTask({
+                                    ...newTask,
+                                    teamId: "",
+                                    creatorId: undefined,
+                                    assignedToId: undefined,
+                                  });
+                                  return;
+                                }
+
+                                const leaderId = teamResponses.find((t) => String(t.id) === String(teamId))
+                                  ?.teamLeaderId;
+
+                                // Keep creator as the admin (caller). Only default assignee to team leader.
+                                setNewTask({
+                                  ...newTask,
+                                  teamId,
+                                  creatorId: undefined,
+                                  assignedToId: typeof leaderId === "number" ? leaderId : undefined,
+                                });
+                              }}
                               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
                             >
                               <option value="">No team</option>
@@ -1041,7 +1075,7 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                 ) : null}
 
                 {/* Users List */}
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto">
                   {filteredUsers.map(user => (
                     <div
                       key={user.id}
@@ -1097,8 +1131,11 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                             <MoreVertical className="w-5 h-5 text-slate-600" />
                           </button>
                           {openActionMenu === user.id && (
-                            <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-10">
-                              {user.role === "member" && (
+                            <div
+                              className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-10"
+                              style={{ bottom: openActionMenu === user.id ? 'auto' : '0' }}
+                            >
+                              {user.status !== "disabled" && user.role === "member" && (
                                 <button
                                   onClick={() => void handleChangeUserRole(user.id, "LEADER")}
                                   className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
@@ -1107,7 +1144,7 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                                   Promote to Leader
                                 </button>
                               )}
-                              {user.role === "leader" && (
+                              {user.status !== "disabled" && user.role === "leader" && (
                                 <button
                                   onClick={() => void handleChangeUserRole(user.id, "MEMBER")}
                                   className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
@@ -1125,6 +1162,24 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                                   Disable Account
                                 </button>
                               )}
+
+                              {user.status === "disabled" && (
+                                <button
+                                  onClick={() => void handleEnableUser(user.id)}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                                >
+                                  <UserCheck className="w-4 h-4 text-green-600" />
+                                  Activate Account
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => void handleRejectUser(user.id)}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete Account
+                              </button>
                             </div>
                           )}
                         </div>
@@ -1425,7 +1480,8 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                                     <div key={t.id} className="p-3 rounded-lg border border-slate-200 bg-white">
                                       <div className="flex items-center justify-between gap-2">
                                         <div className="font-medium text-sm truncate">{t.title}</div>
-                                        <div className={`text-xs ${getPriorityColor(t.priority)}`}>{t.priority}</div>
+                                        <div className={`text-xs ${getPriorityColor(t.priority)} capitalize`}>{String(t.priority ?? "").toLowerCase()}</div>
+
                                       </div>
                                       <div className="text-xs text-slate-500">Status: {t.status}</div>
                                     </div>
@@ -1529,13 +1585,14 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                                 <Check className="w-4 h-4" />
                                 Approve
                               </Button>
+
                               <Button
                                 onClick={() => void handleRejectUser(String(pending.id))}
                                 variant="outline"
                                 className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
                               >
                                 <X className="w-4 h-4" />
-                                Reject
+                                Remove
                               </Button>
                             </div>
                           </div>
@@ -1556,6 +1613,22 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
           task={selectedTask}
           onClose={() => setSelectedTask(null)}
           onStatusChange={(status) => void handleUpdateTaskStatus(selectedTask.id, status)}
+          teamName={
+            selectedTask.teamId
+              ? teamResponses.find((t) => String(t.id) === String(selectedTask.teamId))?.name
+              : undefined
+          }
+          canEdit={Boolean(
+            currentUserId != null &&
+            selectedTask.teamId &&
+            teamResponses.some(
+              (t) => String(t.id) === String(selectedTask.teamId) && Number(t.teamLeaderId) === Number(currentUserId)
+            )
+          )}
+          onTaskUpdated={(updated) => {
+            setAllTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+            setSelectedTask(updated);
+          }}
         />
       )}
     </div>

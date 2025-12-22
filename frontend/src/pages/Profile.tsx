@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { User, Mail, Calendar, MapPin, Briefcase, X, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { formatLocalDate } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import type { Task } from "@/types/task";
 import { useAuth } from "@/context/AuthContext"; // Assuming you have an AuthContext
@@ -13,7 +14,7 @@ interface ProfileProps {
 
 export function Profile({ onBack }: ProfileProps) {
   const { user } = useAuth(); // Get the authenticated user from context
-  const [userData, setUserData] = useState<userData | null >(null); // User data fetched dynamically
+  const [userData, setUserData] = useState<userData | null>(null); // User data fetched dynamically
   const [tasks, setTasks] = useState<Task[]>([]); // Tasks fetched dynamically
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,10 +35,10 @@ export function Profile({ onBack }: ProfileProps) {
           location: "Chania, Crete", // Placeholder location
           joinDate: user?.createdAt
             ? new Intl.DateTimeFormat("en-US", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              }).format(new Date(user.createdAt))
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            }).format(new Date(user.createdAt))
             : "Unknown", // Format createdAt or fallback to "Unknown"
           avatar: `${user?.firstName?.[0] || "E"}${user?.lastName?.[0] || "E"}`, // Initials
         };
@@ -232,7 +233,7 @@ export function Profile({ onBack }: ProfileProps) {
                   {task.priority}
                 </Badge>
                 <div className="text-sm text-slate-600 min-w-25 text-right">
-                  {task.dueDate}
+                  {formatLocalDate(task.dueDate)}
                 </div>
               </div>
             </div>

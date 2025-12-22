@@ -19,6 +19,11 @@ public class TaskRequest {
     private Priority priority;
     private LocalDateTime dueDate;
     private String teamId; // Required for creation
+    /**
+     * Optional override used by admins to create tasks on behalf of a team leader.
+     * Ignored for non-admin callers.
+     */
+    private Long creatorId;
     private Long assignedToId; // Optional on creation
     private TaskStatus status; // Optional (defaults on creation)
 }

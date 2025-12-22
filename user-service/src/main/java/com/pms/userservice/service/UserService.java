@@ -21,6 +21,11 @@ public interface UserService {
 
     RegisterResponse disableUser(Long id);
 
+    /**
+     * Re-activates a disabled account (DISABLED -> ACTIVE).
+     */
+    RegisterResponse enableUser(Long id);
+
     RegisterResponse updateRole(Long id, Role role);
 
     /**
@@ -28,5 +33,11 @@ public interface UserService {
      * Intended for authenticated, non-admin UI needs (e.g., team member lists).
      */
     List<PublicUserNameResponse> getPublicUserNames(List<Long> ids);
+
+    /**
+     * Resolves a username to a user id.
+     * Intended for leader/admin workflows like adding team members.
+     */
+    Long getUserIdByUsername(String username);
 
 }

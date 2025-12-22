@@ -25,4 +25,5 @@ public class TaskResponse {
     private Long creatorId;
     private Long assignedToId;
     private Instant createdAt;
+    private Instant updatedAt;
 }

@@ -9,6 +9,12 @@ export interface TaskFormState {
   priority: Task["priority"];
   dueDate: string;
   teamId: string;
+
+  /** Optional override. Used by admins to create tasks on behalf of a team leader. */
+  creatorId?: number;
+
+  /** Optional override. Used by admins to assign to the team leader by default. */
+  assignedToId?: number;
 }
 
 export const initialTaskFormState: TaskFormState = {
@@ -16,7 +22,9 @@ export const initialTaskFormState: TaskFormState = {
   description: "",
   priority: "MEDIUM",
   dueDate: "",
-  teamId: ""
+  teamId: "",
+  creatorId: undefined,
+  assignedToId: undefined,
 };
 
 export function useTaskOperations(
@@ -52,8 +60,8 @@ export function useTaskOperations(
         priority: newTask.priority,
         dueDate: dueDateIso,
         teamId: newTask.teamId || undefined,
-        creatorId: currentUserId,
-        assignedToId: currentUserId, // Default to self-assign
+        creatorId: newTask.creatorId ?? currentUserId,
+        assignedToId: newTask.assignedToId ?? currentUserId,
       });
 
       // Update local state

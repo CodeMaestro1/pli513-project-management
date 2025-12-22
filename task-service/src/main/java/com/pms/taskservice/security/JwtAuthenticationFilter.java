@@ -29,8 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain
-    ) throws ServletException, IOException {
+            @NonNull FilterChain filterChain) throws ServletException, IOException {
 
         final String authHeader = request.getHeader("Authorization");
         final String jwt;
@@ -53,16 +52,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // Create Authorities (Roles)
                 List<SimpleGrantedAuthority> authorities = Collections.singletonList(
-                        new SimpleGrantedAuthority("ROLE_" + role)
-                );
+                        new SimpleGrantedAuthority("ROLE_" + role));
 
                 // Create Authentication Object
                 // Principal = userId (Long)
                 Authentication authentication = new UsernamePasswordAuthenticationToken(
                         userId,
-                        null,
-                        authorities
-                );
+                        jwt,
+                        authorities);
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }

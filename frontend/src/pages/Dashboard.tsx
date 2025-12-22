@@ -1,4 +1,4 @@
-import { CheckSquare, Users, FolderKanban, Bell, Settings, LogOut, Clock, Circle, CheckCircle2, ChevronDown, Plus, Trash2, X } from "lucide-react";
+import { CheckSquare, Users, FolderKanban, Bell, LogOut, Clock, Circle, CheckCircle2, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import { TaskDetail } from "./TaskDetails";
@@ -173,7 +173,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
 
       const latestUpdatedAt = tasksForTeam
         .map((t) => t.updatedAt)
-        .filter(Boolean)
+        .filter((d): d is string => typeof d === "string" && d.length > 0)
         .map((d) => new Date(d).getTime())
         .filter((n) => Number.isFinite(n))
         .reduce((max, n) => Math.max(max, n), 0);
@@ -210,6 +210,12 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
   const handleStatusChange = (taskId: string, newStatus: Task["status"]) => {
     handleUpdateTaskStatusWrapper(taskId, newStatus, setSelectedTask);
     setOpenDropdown(null);
+  };
+
+  const canEditTask = (t: Task): boolean => {
+    if (!t.teamId || currentUserId == null) return false;
+    const team = teams.find((x) => String(x.id) === String(t.teamId));
+    return Boolean(team && Number(team.teamLeaderId) === Number(currentUserId));
   };
 
 
@@ -302,11 +308,6 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
             </button>
 
-            <button className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors">
-              <Settings className="w-5 h-5 text-slate-600" />
-            </button>
-
-            {/* User Avatar - Click to go to profile */}
             <button
               onClick={onProfileClick}
               className="flex items-center gap-3 hover:bg-slate-100 rounded-lg p-2 transition-colors group"
@@ -793,7 +794,14 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                     <label className="block text-sm font-medium mb-2">Team (optional)</label>
                     <select
                       value={newTask.teamId}
-                      onChange={(e) => setNewTask({ ...newTask, teamId: e.target.value })}
+                      onChange={(e) =>
+                        setNewTask({
+                          ...newTask,
+                          teamId: e.target.value,
+                          creatorId: undefined,
+                          assignedToId: undefined,
+                        })
+                      }
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-white"
                     >
                       <option value="">No team (Private)</option>
@@ -913,6 +921,16 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
             handleStatusChange(selectedTask.id, newStatus);
             setSelectedTask({ ...selectedTask, status: newStatus });
           }}
+          teamName={
+            selectedTask.teamId
+              ? teams.find((t) => String(t.id) === String(selectedTask.teamId))?.name
+              : undefined
+          }
+          canEdit={canEditTask(selectedTask)}
+          onTaskUpdated={(updated) => {
+            setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+            setSelectedTask(updated);
+          }}
         />
       )}
 
@@ -976,6 +994,18 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                 )}
               </div>
 
+              {Number(selectedTeam.teamLeaderId) === Number(currentUserId) ? (
+                <LeaderTeamMemberEditor
+                  team={selectedTeam}
+                  onTeamUpdated={(updated) => {
+                    // keep both selectedTeam and teams list in sync
+                    setSelectedTeam(updated);
+                    setTeams((prev) => prev.map((t) => (String(t.id) === String(updated.id) ? updated : t)));
+                  }}
+                  getDisplayName={getDisplayName}
+                />
+              ) : null}
+
               <div className="pt-2">
                 <Button className="w-full" variant="outline" onClick={() => setSelectedTeam(null)}>
                   Close
@@ -985,6 +1015,103 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function LeaderTeamMemberEditor({
+  team,
+  onTeamUpdated,
+  getDisplayName,
+}: {
+  team: TeamApiResponse;
+  onTeamUpdated: (team: TeamApiResponse) => void;
+  getDisplayName: (id?: number) => string;
+}) {
+  const [usernameInput, setUsernameInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const addMember = async () => {
+    const username = usernameInput.trim();
+    if (!username) {
+      setError("Enter a username.");
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    try {
+      const resolved = await userService.resolveUserId(username);
+      const userId = resolved?.id;
+      if (!userId || !Number.isFinite(Number(userId))) {
+        throw new Error("Could not resolve username to user id");
+      }
+
+      const updated = await teamService.updateMembers(team.id, { action: "add", userId: Number(userId) });
+      onTeamUpdated(updated);
+      setUsernameInput("");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to add member");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeMember = async (userId: number) => {
+    setError(null);
+    setSaving(true);
+    try {
+      const updated = await teamService.updateMembers(team.id, { action: "remove", userId });
+      onTeamUpdated(updated);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to remove member");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const members = Array.isArray(team.memberIds) ? team.memberIds : [];
+
+  return (
+    <div className="pt-2 border-t border-slate-200">
+      <div className="text-sm text-slate-500 mb-2">Leader Actions</div>
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <input
+            value={usernameInput}
+            onChange={(e) => setUsernameInput(e.target.value)}
+            placeholder="Add member by username (e.g. johndoe)"
+            className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+          />
+          <Button onClick={() => void addMember()} disabled={saving || !usernameInput.trim()}>
+            Add
+          </Button>
+        </div>
+
+        {error ? (
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">{error}</div>
+        ) : null}
+
+        <div className="space-y-2">
+          {members
+            .filter((id) => Number(id) !== Number(team.teamLeaderId))
+            .map((id) => (
+              <div
+                key={String(id)}
+                className="flex items-center justify-between p-3 rounded-lg border border-slate-200"
+              >
+                <div className="text-slate-800">{getDisplayName(id)}</div>
+                <Button
+                  variant="outline"
+                  onClick={() => void removeMember(Number(id))}
+                  disabled={saving}
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+        </div>
+      </div>
     </div>
   );
 }

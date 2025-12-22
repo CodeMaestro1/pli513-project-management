@@ -186,3 +186,5 @@ out/
 # -----------------------------
 # This ignores .env in ALL folders (user-service, team-service, task-service)
 .env
+
+.github/

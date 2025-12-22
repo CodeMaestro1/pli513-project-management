@@ -3,15 +3,18 @@ package com.pms.userservice.controller;
 import com.pms.userservice.dto.PublicNamesRequest;
 import com.pms.userservice.dto.PublicUserNameResponse;
 import com.pms.userservice.dto.RegisterResponse;
+import com.pms.userservice.dto.ResolveUserIdResponse;
 import com.pms.userservice.model.User;
 import com.pms.userservice.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -71,5 +74,16 @@ public class UserController {
             return ResponseEntity.badRequest().body(List.of());
         }
         return ResponseEntity.ok(userService.getPublicUserNames(ids));
+    }
+
+    /**
+     * Resolves a username to a user id.
+     * Used by team leaders/admins when adding members.
+     */
+    @GetMapping("/resolve-id")
+    @PreAuthorize("hasAnyRole('LEADER','ADMIN')")
+    public ResponseEntity<ResolveUserIdResponse> resolveUserId(@RequestParam("username") String username) {
+        Long id = userService.getUserIdByUsername(username);
+        return ResponseEntity.ok(ResolveUserIdResponse.builder().id(id).build());
     }
 }

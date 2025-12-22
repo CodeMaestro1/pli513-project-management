@@ -16,6 +16,9 @@ public interface TaskRepository extends MongoRepository<@NonNull Task, @NonNull 
     // Find all tasks assigned to a specific user
     List<Task> findByAssignedToId(Long assignedToId);
 
+    // Find all tasks for any of the provided teams
+    List<Task> findByTeamIdIn(List<String> teamIds);
+
     // Find all tasks created by a specific leader
     List<Task> findByCreatorId(Long creatorId);
 }

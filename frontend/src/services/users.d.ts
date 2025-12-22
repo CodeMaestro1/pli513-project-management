@@ -4,7 +4,12 @@ declare module "@/services/users" {
     displayName: string;
   }
 
+  export interface ResolveUserIdResponse {
+    id: number;
+  }
+
   export declare const userService: {
     getPublicNames(ids: Array<number | string>): Promise<PublicUserName[]>;
+    resolveUserId(username: string): Promise<ResolveUserIdResponse>;
   };
 }

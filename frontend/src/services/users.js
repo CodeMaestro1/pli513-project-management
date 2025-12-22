@@ -11,4 +11,15 @@ export const userService = {
     const res = await userApi.post('/api/v1/users/public-names', { ids: safeIds });
     return res.data;
   },
+
+  /**
+   * Resolve a username to a user id.
+   * Backend: GET /api/v1/users/resolve-id?username=...
+   */
+  async resolveUserId(username) {
+    const u = typeof username === 'string' ? username.trim() : '';
+    if (!u) throw new Error('resolveUserId requires username');
+    const res = await userApi.get('/api/v1/users/resolve-id', { params: { username: u } });
+    return res.data;
+  },
 };

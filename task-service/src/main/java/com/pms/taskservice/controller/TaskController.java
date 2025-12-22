@@ -1,5 +1,7 @@
 package com.pms.taskservice.controller;
 
+import com.pms.taskservice.dto.CommentRequest;
+import com.pms.taskservice.dto.CommentResponse;
 import com.pms.taskservice.dto.TaskRequest;
 import com.pms.taskservice.dto.TaskResponse;
 import com.pms.taskservice.model.TaskStatus;
@@ -25,15 +27,31 @@ public class TaskController {
     @PostMapping
     @PreAuthorize("hasAnyRole('LEADER','ADMIN')")
     public ResponseEntity<@NonNull TaskResponse> createTask(@RequestBody TaskRequest request, Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        return new ResponseEntity<>(taskService.createTask(request, userId), HttpStatus.CREATED);
+        Long callerUserId = (Long) auth.getPrincipal();
+
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+
+        Long effectiveCreatorId = callerUserId;
+        if (isAdmin && request != null && request.getCreatorId() != null) {
+            effectiveCreatorId = request.getCreatorId();
+        }
+
+        return new ResponseEntity<>(taskService.createTask(request, effectiveCreatorId), HttpStatus.CREATED);
     }
 
     // --- 2. Get Tasks by Team ---
     @GetMapping("/team/{teamId}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@taskService.canAccessTeam(authentication, #teamId)")
     public ResponseEntity<@NonNull List<TaskResponse>> getTasksByTeam(@PathVariable String teamId) {
         return ResponseEntity.ok(taskService.getTasksByTeam(teamId));
+    }
+
+    // --- 2b. Get All Tasks (Admin) ---
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<@NonNull List<TaskResponse>> getAllTasks() {
+        return ResponseEntity.ok(taskService.getAllTasks());
     }
 
     // --- 3. Get My Tasks ---
@@ -46,7 +64,7 @@ public class TaskController {
 
     // --- 4. Update Task Info (Creator Only) ---
     @PutMapping("/{taskId}")
-    @PreAuthorize("@taskService.isTaskCreator(authentication, #taskId)")
+    @PreAuthorize("@taskService.canEditTask(authentication, #taskId)")
     public ResponseEntity<@NonNull TaskResponse> updateTask(
             @PathVariable String taskId,
             @RequestBody TaskRequest request) {
@@ -55,7 +73,7 @@ public class TaskController {
 
     // --- 5. Update Status (Creator OR Assigned User) ---
     @PatchMapping("/{taskId}/status")
-    @PreAuthorize("@taskService.isTaskCreator(authentication, #taskId) or @taskService.isAssignedToTask(authentication, #taskId)")
+    @PreAuthorize("@taskService.canEditTask(authentication, #taskId) or @taskService.isAssignedToTask(authentication, #taskId)")
     public ResponseEntity<@NonNull TaskResponse> updateTaskStatus(
             @PathVariable String taskId,
             @RequestParam TaskStatus status) {
@@ -68,5 +86,22 @@ public class TaskController {
     public ResponseEntity<@NonNull Void> deleteTask(@PathVariable String taskId) {
         taskService.deleteTask(taskId);
         return ResponseEntity.noContent().build();
+    }
+
+    // --- 7. Task Comments ---
+    @GetMapping("/{taskId}/comments")
+    @PreAuthorize("@taskService.canViewTask(authentication, #taskId)")
+    public ResponseEntity<@NonNull List<CommentResponse>> getComments(@PathVariable String taskId) {
+        return ResponseEntity.ok(taskService.getComments(taskId));
+    }
+
+    @PostMapping("/{taskId}/comments")
+    @PreAuthorize("@taskService.canCommentOnTask(authentication, #taskId)")
+    public ResponseEntity<@NonNull CommentResponse> addComment(
+            @PathVariable String taskId,
+            @RequestBody CommentRequest request,
+            Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        return new ResponseEntity<>(taskService.addComment(taskId, userId, request), HttpStatus.CREATED);
     }
 }

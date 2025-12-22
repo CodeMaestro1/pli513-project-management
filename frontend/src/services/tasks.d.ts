@@ -1,6 +1,6 @@
 declare module "@/services/tasks" {
 
-    import type { Task, TaskStatus, Priority } from "@/types/task";
+    import type { Task, TaskStatus, Priority, TaskComment } from "@/types/task";
 
     export interface CreateTaskPayload {
         title: string;
@@ -16,12 +16,16 @@ declare module "@/services/tasks" {
     export type UpdateTaskPayload = Partial<CreateTaskPayload>;
 
     export declare const taskService: {
+        listAllTasks(): Promise<Task[]>;
         listMyTasks(): Promise<Task[]>;
         listByTeam(teamId: string): Promise<Task[]>;
         create(payload: CreateTaskPayload): Promise<Task>;
         update(taskId: string, payload: UpdateTaskPayload): Promise<Task>;
         updateStatus(taskId: string, status: TaskStatus): Promise<Task>;
         remove(taskId: string): Promise<unknown>;
+
+        listComments(taskId: string): Promise<TaskComment[]>;
+        addComment(taskId: string, payload: { message: string }): Promise<TaskComment>;
     };
 
 }

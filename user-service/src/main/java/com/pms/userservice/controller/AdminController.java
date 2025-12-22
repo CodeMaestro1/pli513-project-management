@@ -33,8 +33,7 @@ public class AdminController {
     @PutMapping("/{id}")
     public ResponseEntity<RegisterResponse> updateUser(
             @PathVariable Long id,
-            @RequestBody RegisterResponse request
-    ) {
+            @RequestBody RegisterResponse request) {
         return ResponseEntity.ok(userService.updateUser(id, request));
     }
 
@@ -64,11 +63,19 @@ public class AdminController {
         return ResponseEntity.ok(updatedUser);
     }
 
+    /**
+     * Re-activates a disabled user (DISABLED -> ACTIVE).
+     */
+    @PatchMapping("/{id}/enable")
+    public ResponseEntity<RegisterResponse> enableUser(@PathVariable Long id) {
+        RegisterResponse updatedUser = userService.enableUser(id);
+        return ResponseEntity.ok(updatedUser);
+    }
+
     @PatchMapping("/{id}/role")
     public ResponseEntity<RegisterResponse> updateRole(
             @PathVariable Long id,
-            @RequestParam Role role
-    ) {
+            @RequestParam Role role) {
         return ResponseEntity.ok(userService.updateRole(id, role));
     }
 }

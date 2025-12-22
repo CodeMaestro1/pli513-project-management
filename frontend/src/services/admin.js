@@ -13,6 +13,10 @@ export const adminService = {
     const res = await userApi.patch(`/api/v1/admin/users/${userId}/disable`);
     return res.data;
   },
+  async enableUser(userId) {
+    const res = await userApi.patch(`/api/v1/admin/users/${userId}/enable`);
+    return res.data;
+  },
   async updateRole(userId, role) {
     const res = await userApi.patch(`/api/v1/admin/users/${userId}/role`, null, { params: { role } });
     return res.data;
