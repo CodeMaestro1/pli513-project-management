@@ -208,7 +208,6 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
               ) : (
                 <h2 className="text-2xl mb-2">{task.title}</h2>
               )}
-              <p className="text-sm text-slate-500">Task ID: {task.id}</p>
             </div>
             <button
               onClick={onClose}

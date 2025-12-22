@@ -57,6 +57,43 @@ type DashboardUser = {
   raw: AdminUser;
 };
 
+type RecentActivityType =
+  | "USER_APPROVED"
+  | "USER_REMOVED"
+  | "USER_DISABLED"
+  | "USER_ENABLED"
+  | "ROLE_CHANGED"
+  | "TEAM_CREATED"
+  | "TEAM_DELETED"
+  | "TEAM_MEMBERS_UPDATED"
+  | "TASK_CREATED"
+  | "TASK_DELETED"
+  | "TASK_STATUS_UPDATED";
+
+type RecentActivityItem = {
+  id: string;
+  type: RecentActivityType;
+  title: string;
+  detail?: string;
+  at: string; // ISO timestamp
+};
+
+const STORAGE_KEYS = {
+  users: "adminDashboard:users",
+  teams: "adminDashboard:teams",
+  tasks: "adminDashboard:tasks",
+  activity: "adminDashboard:activity",
+} as const;
+
+const safeJsonParse = <T,>(raw: string | null): T | undefined => {
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return undefined;
+  }
+};
+
 interface AdminDashboardProps {
   onProfileClick: () => void;
   onLogout: () => void;
@@ -77,6 +114,22 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     if (!value) return "";
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString();
+  };
+
+  const formatRelativeTime = (iso: string) => {
+    const d = new Date(iso);
+    const ms = d.getTime();
+    if (Number.isNaN(ms)) return "";
+    const diff = Date.now() - ms;
+
+    const sec = Math.floor(diff / 1000);
+    if (sec < 60) return "Just now";
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min} min ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr} hour${hr === 1 ? "" : "s"} ago`;
+    const days = Math.floor(hr / 24);
+    return `${days} day${days === 1 ? "" : "s"} ago`;
   };
 
   const getErrorMessage = (err: unknown): string => {
@@ -112,6 +165,37 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState<string | null>(null);
 
+  const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>(() => {
+    const cached = safeJsonParse<RecentActivityItem[]>(sessionStorage.getItem(STORAGE_KEYS.activity));
+    return Array.isArray(cached) ? cached : [];
+  });
+
+  const pushActivity = (item: Omit<RecentActivityItem, "id" | "at">) => {
+    const full: RecentActivityItem = {
+      ...item,
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      at: new Date().toISOString(),
+    };
+    setRecentActivity((prev) => [full, ...prev].slice(0, 20));
+  };
+
+  // Persist frequently-used dashboard state to make back/forward feel instant even when BFCache doesn't apply.
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_KEYS.activity, JSON.stringify(recentActivity));
+  }, [recentActivity]);
+
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_KEYS.users, JSON.stringify(adminUsers));
+  }, [adminUsers]);
+
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_KEYS.teams, JSON.stringify(teamResponses));
+  }, [teamResponses]);
+
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify(allTasks));
+  }, [allTasks]);
+
   // Initialize the hook
   const {
     error: hookTasksError,
@@ -125,16 +209,36 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
   } = useTaskOperations(setAllTasks, currentUserId);
 
   // Sync hook error with component error if needed, or use directly
-  // Here we'll just prioritize the hook error if present
   const displayTasksError = hookTasksError || tasksError;
 
-  const handleDeleteTask = (taskId: string) =>
-    handleDeleteTaskWrapper(taskId, selectedTask, setSelectedTask);
+  const handleDeleteTask = async (taskId: string) => {
+    await Promise.resolve(handleDeleteTaskWrapper(taskId, selectedTask, setSelectedTask));
+    const deletedTitle = allTasks.find((t) => String(t.id) === String(taskId))?.title;
+    pushActivity({
+      type: "TASK_DELETED",
+      title: "Task deleted",
+      detail: deletedTitle ? `Deleted “${deletedTitle}”` : undefined,
+    });
+  };
 
-  const handleUpdateTaskStatus = (taskId: string, status: Task["status"]) =>
-    handleUpdateTaskStatusWrapper(taskId, status, setSelectedTask);
+  const handleUpdateTaskStatus = async (taskId: string, status: Task["status"]) => {
+    await Promise.resolve(handleUpdateTaskStatusWrapper(taskId, status, setSelectedTask));
+    const title = allTasks.find((t) => String(t.id) === String(taskId))?.title;
+    pushActivity({
+      type: "TASK_STATUS_UPDATED",
+      title: "Task updated",
+      detail: `${title ? `“${title}”` : "Task"} → ${status}`,
+    });
+  };
 
-  const handleCreateTask = () => handleCreateTaskHook();
+  const handleCreateTask = async () => {
+    await Promise.resolve(handleCreateTaskHook());
+    pushActivity({
+      type: "TASK_CREATED",
+      title: "Task created",
+      detail: newTask.title ? `Created “${newTask.title}”` : undefined,
+    });
+  };
 
   const pendingAdminUsers = useMemo(
     () => adminUsers.filter((u) => u.status === "PENDING"),
@@ -238,7 +342,36 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     };
   }, [setShowCreateTaskModal]); // <--- Added dependency here
 
+  // BFCache hook: when the browser restores the page from bfcache, re-hydrate from sessionStorage.
   useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+
+      const cachedUsers = safeJsonParse<AdminUser[]>(sessionStorage.getItem(STORAGE_KEYS.users));
+      if (Array.isArray(cachedUsers)) setAdminUsers(cachedUsers);
+
+      const cachedTeams = safeJsonParse<TeamApiResponse[]>(sessionStorage.getItem(STORAGE_KEYS.teams));
+      if (Array.isArray(cachedTeams)) setTeamResponses(cachedTeams);
+
+      const cachedTasks = safeJsonParse<Task[]>(sessionStorage.getItem(STORAGE_KEYS.tasks));
+      if (Array.isArray(cachedTasks)) setAllTasks(cachedTasks);
+
+      const cachedActivity = safeJsonParse<RecentActivityItem[]>(sessionStorage.getItem(STORAGE_KEYS.activity));
+      if (Array.isArray(cachedActivity)) setRecentActivity(cachedActivity);
+    };
+
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
+  // Hydrate from cache ASAP, then refresh from network.
+  useEffect(() => {
+    const cachedTasks = safeJsonParse<Task[]>(sessionStorage.getItem(STORAGE_KEYS.tasks));
+    if (Array.isArray(cachedTasks) && cachedTasks.length > 0) setAllTasks(cachedTasks);
+
+    const cachedTeams = safeJsonParse<TeamApiResponse[]>(sessionStorage.getItem(STORAGE_KEYS.teams));
+    if (Array.isArray(cachedTeams) && cachedTeams.length > 0) setTeamResponses(cachedTeams);
+
     const load = async () => {
       setTasksLoading(true);
       setTasksError(null);
@@ -260,6 +393,9 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
   }, []);
 
   useEffect(() => {
+    const cachedUsers = safeJsonParse<AdminUser[]>(sessionStorage.getItem(STORAGE_KEYS.users));
+    if (Array.isArray(cachedUsers) && cachedUsers.length > 0) setAdminUsers(cachedUsers);
+
     const loadUsers = async () => {
       setUsersLoading(true);
       setUsersError(null);
@@ -289,6 +425,15 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     try {
       const updated = await adminService.updateRole(userId, role);
       setAdminUsers((prev) => prev.map((u) => (String(u.id) === String(userId) ? updated : u)));
+
+      const fullName = [updated.firstName, updated.lastName].filter(Boolean).join(" ").trim();
+      const name = fullName || updated.username || updated.email;
+
+      pushActivity({
+        type: "ROLE_CHANGED",
+        title: "Role changed",
+        detail: `${name} → ${role}`,
+      });
     } catch (e) {
       setUsersError(getErrorMessage(e));
     } finally {
@@ -301,6 +446,15 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     try {
       const updated = await adminService.disableUser(userId);
       setAdminUsers((prev) => prev.map((u) => (String(u.id) === String(userId) ? updated : u)));
+
+      const fullName = [updated.firstName, updated.lastName].filter(Boolean).join(" ").trim();
+      const name = fullName || updated.username || updated.email;
+
+      pushActivity({
+        type: "USER_DISABLED",
+        title: "User disabled",
+        detail: name,
+      });
     } catch (e) {
       setUsersError(getErrorMessage(e));
     } finally {
@@ -313,6 +467,15 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     try {
       const updated = await adminService.enableUser(userId);
       setAdminUsers((prev) => prev.map((u) => (String(u.id) === String(userId) ? updated : u)));
+
+      const fullName = [updated.firstName, updated.lastName].filter(Boolean).join(" ").trim();
+      const name = fullName || updated.username || updated.email;
+
+      pushActivity({
+        type: "USER_ENABLED",
+        title: "User activated",
+        detail: name,
+      });
     } catch (e) {
       setUsersError(getErrorMessage(e));
     } finally {
@@ -325,6 +488,16 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     try {
       const updated = await adminService.approveUser(userId);
       setAdminUsers((prev) => prev.map((u) => (String(u.id) === String(userId) ? updated : u)));
+
+      const fullName = [updated.firstName, updated.lastName].filter(Boolean).join(" ").trim();
+      const name = fullName || updated.username || updated.email;
+
+      // This is the "last action" example you asked for (latest approved user stays at top).
+      pushActivity({
+        type: "USER_APPROVED",
+        title: "User approved",
+        detail: name,
+      });
     } catch (e) {
       setUsersError(getErrorMessage(e));
     }
@@ -333,8 +506,18 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
   const handleRejectUser = async (userId: string) => {
     setUsersError(null);
     try {
+      const existing = adminUsers.find((u) => String(u.id) === String(userId));
       await adminService.deleteUser(userId);
       await refreshUsers();
+
+      const fullName = existing ? [existing.firstName, existing.lastName].filter(Boolean).join(" ").trim() : "";
+      const name = fullName || existing?.username || existing?.email || "User";
+
+      pushActivity({
+        type: "USER_REMOVED",
+        title: "User removed",
+        detail: name,
+      });
     } catch (e) {
       setUsersError(getErrorMessage(e));
     }
@@ -372,6 +555,13 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
       }
 
       setTeamResponses((prev) => [...prev, createdTeam]);
+
+      pushActivity({
+        type: "TEAM_CREATED",
+        title: "Team created",
+        detail: createdTeam.name ? `Created “${createdTeam.name}”` : undefined,
+      });
+
       setNewTeam({ name: "", description: "", leaderId: "", memberIds: [] });
       setShowCreateTeamModal(false);
     } catch (e) {
@@ -390,9 +580,16 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
   const handleDeleteTeam = async (teamId: string) => {
     setUsersError(null);
     try {
+      const existing = teamResponses.find((t) => String(t.id) === String(teamId));
       await teamService.remove(teamId);
       setTeamResponses((prev) => prev.filter((t) => String(t.id) !== String(teamId)));
       setAllTasks((prev) => prev.map((t) => (t.teamId === teamId ? { ...t, teamId: "" } : t)));
+
+      pushActivity({
+        type: "TEAM_DELETED",
+        title: "Team deleted",
+        detail: existing?.name ? `Deleted “${existing.name}”` : undefined,
+      });
     } catch (e) {
       setUsersError(getErrorMessage(e));
     }
@@ -445,6 +642,13 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
       }
 
       setTeamResponses((prev) => prev.map((t) => (String(t.id) === String(teamId) ? latest : t)));
+
+      pushActivity({
+        type: "TEAM_MEMBERS_UPDATED",
+        title: "Team updated",
+        detail: latest.name ? `Updated members in “${latest.name}”` : "Updated team members",
+      });
+
       closeTeamDetails();
     } catch (e) {
       setUsersError(getErrorMessage(e));
@@ -483,6 +687,48 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
         return "text-amber-500";
       case "LOW":
         return "text-green-500";
+    }
+  };
+
+  const getActivityIcon = (type: RecentActivityType) => {
+    switch (type) {
+      case "USER_APPROVED":
+      case "USER_ENABLED":
+        return (
+          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+            <UserCheck className="w-5 h-5 text-green-600" />
+          </div>
+        );
+      case "ROLE_CHANGED":
+        return (
+          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+            <Crown className="w-5 h-5 text-purple-600" />
+          </div>
+        );
+      case "USER_DISABLED":
+      case "USER_REMOVED":
+        return (
+          <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+            <Ban className="w-5 h-5 text-red-600" />
+          </div>
+        );
+      case "TEAM_CREATED":
+      case "TEAM_DELETED":
+      case "TEAM_MEMBERS_UPDATED":
+        return (
+          <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
+            <FolderKanban className="w-5 h-5 text-sky-600" />
+          </div>
+        );
+      case "TASK_CREATED":
+      case "TASK_DELETED":
+      case "TASK_STATUS_UPDATED":
+      default:
+        return (
+          <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+            <ListTodo className="w-5 h-5 text-slate-600" />
+          </div>
+        );
     }
   };
 
@@ -733,41 +979,37 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                 </div>
 
                 <div>
-                  <h3 className="text-xl mb-4">Recent Activity</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-lg">
-                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                        <UserCheck className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">New user approved</p>
-                        <p className="text-xs text-slate-500">Sarah Johnson approved Mike Chen's account</p>
-                      </div>
-                      <span className="text-xs text-slate-400">2 hours ago</span>
-                    </div>
-
-                    <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-lg">
-                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <Crown className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">User promoted</p>
-                        <p className="text-xs text-slate-500">Emily Davis promoted to Team Leader</p>
-                      </div>
-                      <span className="text-xs text-slate-400">5 hours ago</span>
-                    </div>
-
-                    <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-lg">
-                      <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                        <Clock className="w-5 h-5 text-amber-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">New approval request</p>
-                        <p className="text-xs text-slate-500">David Wilson requested to join</p>
-                      </div>
-                      <span className="text-xs text-slate-400">1 day ago</span>
-                    </div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl">Recent Activity</h3>
+                    {recentActivity.length > 0 ? (
+                      <button
+                        onClick={() => setRecentActivity([])}
+                        className="text-sm text-slate-500 hover:text-slate-700"
+                        title="Clear recent activity"
+                      >
+                        Clear
+                      </button>
+                    ) : null}
                   </div>
+
+                  {recentActivity.length === 0 ? (
+                    <div className="p-4 bg-slate-50 rounded-lg text-sm text-slate-600">
+                      No recent actions yet. Approvals, role changes, teams and tasks updates will appear here.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {recentActivity.slice(0, 6).map((a) => (
+                        <div key={a.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-lg">
+                          {getActivityIcon(a.type)}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{a.title}</p>
+                            {a.detail ? <p className="text-xs text-slate-500 truncate">{a.detail}</p> : null}
+                          </div>
+                          <span className="text-xs text-slate-400">{formatRelativeTime(a.at)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

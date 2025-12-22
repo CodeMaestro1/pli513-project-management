@@ -1,0 +1,19 @@
+# robots.txt for the frontend site
+# Replace https://example.com with your production origin before publishing.
+
+User-agent: *
+# Block admin UI pages and other non-public paths
+Disallow: /admin/
+Disallow: /admin-dashboard/
+Disallow: /private/
+Disallow: /api/
+Disallow: /user/
+
+# Allow everything else
+Allow: /
+
+# Optional: slow down aggressive crawlers (seconds between successive requests)
+# Crawl-delay: 10
+
+# Sitemap (replace with your real sitemap URL)
+Sitemap: https://example.com/sitemap.xml

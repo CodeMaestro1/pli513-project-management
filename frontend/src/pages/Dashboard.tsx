@@ -1,7 +1,6 @@
 import { CheckSquare, Users, FolderKanban, Bell, LogOut, Clock, Circle, CheckCircle2, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect, useMemo, useState } from "react";
-import { TaskDetail } from "./TaskDetails";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import type { Task } from "@/types/task";
 import { statusFriendlyNames, priopirityFriendlyNames } from "@/lib/mappings";
 import { useAuth } from "@/context/AuthContext";
@@ -10,6 +9,8 @@ import { teamService } from "@/services/teams";
 import { userService } from "@/services/users";
 import { useTaskOperations } from "@/hooks/useTaskOperations";
 import type { TeamApiResponse } from "@/services/teams";
+
+const LazyTaskDetail = React.lazy(() => import("./TaskDetails").then((m) => ({ default: m.TaskDetail })));
 
 interface DashboardProps {
   onProfileClick: () => void;
@@ -914,24 +915,26 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
 
       {/* Task Detail Modal */}
       {selectedTask && (
-        <TaskDetail
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-          onStatusChange={(newStatus) => {
-            handleStatusChange(selectedTask.id, newStatus);
-            setSelectedTask({ ...selectedTask, status: newStatus });
-          }}
-          teamName={
-            selectedTask.teamId
-              ? teams.find((t) => String(t.id) === String(selectedTask.teamId))?.name
-              : undefined
-          }
-          canEdit={canEditTask(selectedTask)}
-          onTaskUpdated={(updated) => {
-            setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-            setSelectedTask(updated);
-          }}
-        />
+        <Suspense fallback={null}>
+          <LazyTaskDetail
+            task={selectedTask}
+            onClose={() => setSelectedTask(null)}
+            onStatusChange={(newStatus) => {
+              handleStatusChange(selectedTask.id, newStatus);
+              setSelectedTask({ ...selectedTask, status: newStatus });
+            }}
+            teamName={
+              selectedTask.teamId
+                ? teams.find((t) => String(t.id) === String(selectedTask.teamId))?.name
+                : undefined
+            }
+            canEdit={canEditTask(selectedTask)}
+            onTaskUpdated={(updated) => {
+              setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+              setSelectedTask(updated);
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Team Details Modal */}
