@@ -498,7 +498,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                             <ChevronDown className="w-3 h-3" />
                           </button>
                           {openDropdown === task.id && (
-                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-10">
+                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-2xl border border-slate-200 py-1 z-50">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -592,7 +592,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                             <ChevronDown className="w-3 h-3" />
                           </button>
                           {openDropdown === task.id && (
-                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-10">
+                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-2xl border border-slate-200 py-1 z-50">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -645,7 +645,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                   {completedTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="p-4 bg-green-50 border border-green-200 rounded-lg hover:shadow-md transition-all group cursor-pointer opacity-75"
+                      className="p-4 bg-green-50 border border-green-200 rounded-lg hover:shadow-md transition-all group cursor-pointer"
                       onClick={(e) => {
                         if (!(e.target as HTMLElement).closest('.status-dropdown') && !(e.target as HTMLElement).closest('.delete-btn')) {
                           setSelectedTask(task);
@@ -653,7 +653,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                       }}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <h5 className="font-medium line-through decoration-slate-400">{task.title}</h5>
+                        <h5 className="font-medium">{task.title}</h5>
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 rounded-full text-xs border ${getPriorityColor(task.priority)}`}>
                             {getPriorityLabel(task.priority)}
@@ -686,7 +686,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                             <ChevronDown className="w-3 h-3" />
                           </button>
                           {openDropdown === task.id && (
-                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-10">
+                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-2xl border border-slate-200 py-1 z-50">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();

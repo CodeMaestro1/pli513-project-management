@@ -3,6 +3,7 @@ import {
   Shield,
   UserCheck,
   Clock,
+  Circle,
   CheckCircle2,
   Bell,
   LogOut,
@@ -21,7 +22,8 @@ import {
   CheckSquare,
   Plus,
   Edit,
-  Trash2
+  Trash2,
+  ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
@@ -29,6 +31,7 @@ import { TaskDetail } from "./TaskDetails";
 import type { AdminUser, UserRole } from "@/types/user";
 import type { Team } from "@/types/team";
 import type { Task } from "@/types/task";
+import { statusFriendlyNames, priopirityFriendlyNames } from "@/lib/mappings";
 import { taskService } from "@/services/tasks";
 import { teamService } from "@/services/teams";
 import { adminService } from "@/services/admin";
@@ -145,6 +148,7 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("all");
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+  const [openTaskDropdown, setOpenTaskDropdown] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
@@ -324,11 +328,17 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
       if (!target.closest("[data-action-menu]")) {
         setOpenActionMenu(null);
       }
+
+      // If the click is not inside a status dropdown, close the open task dropdown
+      if (!target.closest(".status-dropdown")) {
+        setOpenTaskDropdown(null);
+      }
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       setOpenActionMenu(null);
+      setOpenTaskDropdown(null);
       setSelectedTask(null);
       setShowCreateTeamModal(false);
       setShowCreateTaskModal(false);
@@ -690,6 +700,49 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     }
   };
 
+  const getPriorityLabel = (priority: Task["priority"]) => {
+    return priopirityFriendlyNames[priority] || "Unknown Priority";
+  };
+
+  const getPriorityPillColor = (priority: Task["priority"]) => {
+    switch (priority) {
+      case "HIGH":
+        return "text-red-500 bg-red-50 border-red-100";
+      case "MEDIUM":
+        return "text-amber-500 bg-amber-50 border-amber-100";
+      case "LOW":
+        return "text-green-500 bg-green-50 border-green-100";
+      default:
+        return "text-slate-500 bg-slate-50 border-slate-100";
+    }
+  };
+
+  const getStatusColor = (status: Task["status"]) => {
+    switch (status) {
+      case "TODO":
+        return "bg-slate-100 text-slate-700 border-slate-200";
+      case "IN_PROGRESS":
+        return "bg-sky-100 text-sky-700 border-sky-200";
+      case "DONE":
+        return "bg-green-100 text-green-700 border-green-200";
+    }
+  };
+
+  const getStatusIcon = (status: Task["status"]) => {
+    switch (status) {
+      case "TODO":
+        return <Circle className="w-4 h-4" />;
+      case "IN_PROGRESS":
+        return <Clock className="w-4 h-4" />;
+      case "DONE":
+        return <CheckCircle2 className="w-4 h-4" />;
+    }
+  };
+
+  const getStatusLabel = (status: Task["status"]) => {
+    return statusFriendlyNames[status] || "Unknown Status";
+  };
+
   const getActivityIcon = (type: RecentActivityType) => {
     switch (type) {
       case "USER_APPROVED":
@@ -1048,28 +1101,84 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                     {todoTasks.map(task => (
                       <div
                         key={task.id}
-                        onClick={() => setSelectedTask(task)}
-                        className="bg-white p-4 rounded-xl border border-slate-200 hover:border-sky-300 hover:shadow-lg transition-all cursor-pointer"
+                        onClick={(e) => {
+                          if (!(e.target as HTMLElement).closest('.status-dropdown') && !(e.target as HTMLElement).closest('.delete-btn')) {
+                            setSelectedTask(task);
+                          }
+                        }}
+                        className="p-4 bg-slate-50 border border-slate-200 rounded-lg hover:shadow-md transition-all group cursor-pointer"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <h5 className="font-medium mb-2">{task.title}</h5>
-                          <button
-                            className="p-1 hover:bg-slate-100 rounded"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteTask(task.id);
-                            }}
-                            title="Delete task"
-                          >
-                            <Trash2 className="w-4 h-4 text-slate-500" />
-                          </button>
+                          <h5 className="font-medium">{task.title}</h5>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs border ${getPriorityPillColor(task.priority)}`}>
+                              {getPriorityLabel(task.priority)}
+                            </span>
+                            <button
+                              className="delete-btn p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-red-500 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTask(task.id);
+                              }}
+                              title="Delete task"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                         <p className="text-sm text-slate-600 mb-3 line-clamp-2">{task.description}</p>
                         <div className="flex items-center justify-between">
-                          <span className={`text-xs ${getPriorityColor(task.priority)}`}>
-                            <span className="capitalize">{String(task.priority ?? "").toLowerCase()} Priority</span>
-                          </span>
-                          <span className="text-xs text-slate-400">{formatDate(task.dueDate)}</span>
+                          <span className="text-xs text-slate-500">{formatDate(task.dueDate)}</span>
+                          <div className="relative status-dropdown">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenTaskDropdown(openTaskDropdown === task.id ? null : task.id);
+                              }}
+                              className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm border transition-all ${getStatusColor(task.status)}`}
+                            >
+                              {getStatusIcon(task.status)}
+                              <span>{getStatusLabel(task.status)}</span>
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                            {openTaskDropdown === task.id && (
+                              <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-2xl border border-slate-200 py-1 z-50">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleUpdateTaskStatus(task.id, "TODO");
+                                    setOpenTaskDropdown(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                                >
+                                  <Circle className="w-4 h-4 text-slate-500" />
+                                  To Do
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleUpdateTaskStatus(task.id, "IN_PROGRESS");
+                                    setOpenTaskDropdown(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                                >
+                                  <Clock className="w-4 h-4 text-sky-500" />
+                                  Ongoing
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleUpdateTaskStatus(task.id, "DONE");
+                                    setOpenTaskDropdown(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                                >
+                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                  Completed
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1087,28 +1196,84 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                     {ongoingTasks.map(task => (
                       <div
                         key={task.id}
-                        onClick={() => setSelectedTask(task)}
-                        className="bg-white p-4 rounded-xl border border-slate-200 hover:border-sky-300 hover:shadow-lg transition-all cursor-pointer"
+                        onClick={(e) => {
+                          if (!(e.target as HTMLElement).closest('.status-dropdown') && !(e.target as HTMLElement).closest('.delete-btn')) {
+                            setSelectedTask(task);
+                          }
+                        }}
+                        className="p-4 bg-sky-50 border border-sky-200 rounded-lg hover:shadow-md transition-all group cursor-pointer"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <h5 className="font-medium mb-2">{task.title}</h5>
-                          <button
-                            className="p-1 hover:bg-slate-100 rounded"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteTask(task.id);
-                            }}
-                            title="Delete task"
-                          >
-                            <Trash2 className="w-4 h-4 text-slate-500" />
-                          </button>
+                          <h5 className="font-medium">{task.title}</h5>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs border ${getPriorityPillColor(task.priority)}`}>
+                              {getPriorityLabel(task.priority)}
+                            </span>
+                            <button
+                              className="delete-btn p-1 hover:bg-sky-200 rounded text-slate-400 hover:text-red-500 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTask(task.id);
+                              }}
+                              title="Delete task"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                         <p className="text-sm text-slate-600 mb-3 line-clamp-2">{task.description}</p>
                         <div className="flex items-center justify-between">
-                          <span className={`text-xs ${getPriorityColor(task.priority)}`}>
-                            <span className="capitalize">{String(task.priority ?? "").toLowerCase()} Priority</span>
-                          </span>
-                          <span className="text-xs text-slate-400">{formatDate(task.dueDate)}</span>
+                          <span className="text-xs text-slate-500">{formatDate(task.dueDate)}</span>
+                          <div className="relative status-dropdown">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenTaskDropdown(openTaskDropdown === task.id ? null : task.id);
+                              }}
+                              className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm border transition-all ${getStatusColor(task.status)}`}
+                            >
+                              {getStatusIcon(task.status)}
+                              <span>{getStatusLabel(task.status)}</span>
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                            {openTaskDropdown === task.id && (
+                              <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-2xl border border-slate-200 py-1 z-50">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleUpdateTaskStatus(task.id, "TODO");
+                                    setOpenTaskDropdown(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                                >
+                                  <Circle className="w-4 h-4 text-slate-500" />
+                                  To Do
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleUpdateTaskStatus(task.id, "IN_PROGRESS");
+                                    setOpenTaskDropdown(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                                >
+                                  <Clock className="w-4 h-4 text-sky-500" />
+                                  Ongoing
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleUpdateTaskStatus(task.id, "DONE");
+                                    setOpenTaskDropdown(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                                >
+                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                  Completed
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1126,28 +1291,84 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                     {completedTasks.map(task => (
                       <div
                         key={task.id}
-                        onClick={() => setSelectedTask(task)}
-                        className="bg-white p-4 rounded-xl border border-slate-200 hover:border-sky-300 hover:shadow-lg transition-all cursor-pointer opacity-75"
+                        onClick={(e) => {
+                          if (!(e.target as HTMLElement).closest('.status-dropdown') && !(e.target as HTMLElement).closest('.delete-btn')) {
+                            setSelectedTask(task);
+                          }
+                        }}
+                        className="p-4 bg-green-50 border border-green-200 rounded-lg hover:shadow-md transition-all group cursor-pointer"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <h5 className="font-medium mb-2">{task.title}</h5>
-                          <button
-                            className="p-1 hover:bg-slate-100 rounded"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteTask(task.id);
-                            }}
-                            title="Delete task"
-                          >
-                            <Trash2 className="w-4 h-4 text-slate-500" />
-                          </button>
+                          <h5 className="font-medium">{task.title}</h5>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs border ${getPriorityPillColor(task.priority)}`}>
+                              {getPriorityLabel(task.priority)}
+                            </span>
+                            <button
+                              className="delete-btn p-1 hover:bg-green-200 rounded text-slate-400 hover:text-red-500 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTask(task.id);
+                              }}
+                              title="Delete task"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                         <p className="text-sm text-slate-600 mb-3 line-clamp-2">{task.description}</p>
                         <div className="flex items-center justify-between">
-                          <span className={`text-xs ${getPriorityColor(task.priority)}`}>
-                            <span className="capitalize">{String(task.priority ?? "").toLowerCase()} Priority</span>
-                          </span>
-                          <span className="text-xs text-slate-400">{formatDate(task.dueDate)}</span>
+                          <span className="text-xs text-slate-500">{formatDate(task.dueDate)}</span>
+                          <div className="relative status-dropdown">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenTaskDropdown(openTaskDropdown === task.id ? null : task.id);
+                              }}
+                              className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm border transition-all ${getStatusColor(task.status)}`}
+                            >
+                              {getStatusIcon(task.status)}
+                              <span>{getStatusLabel(task.status)}</span>
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                            {openTaskDropdown === task.id && (
+                              <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-2xl border border-slate-200 py-1 z-50">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleUpdateTaskStatus(task.id, "TODO");
+                                    setOpenTaskDropdown(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                                >
+                                  <Circle className="w-4 h-4 text-slate-500" />
+                                  To Do
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleUpdateTaskStatus(task.id, "IN_PROGRESS");
+                                    setOpenTaskDropdown(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                                >
+                                  <Clock className="w-4 h-4 text-sky-500" />
+                                  Ongoing
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleUpdateTaskStatus(task.id, "DONE");
+                                    setOpenTaskDropdown(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                                >
+                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                  Completed
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1861,10 +2082,13 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
               : undefined
           }
           canEdit={Boolean(
-            currentUserId != null &&
-            selectedTask.teamId &&
-            teamResponses.some(
-              (t) => String(t.id) === String(selectedTask.teamId) && Number(t.teamLeaderId) === Number(currentUserId)
+            user?.role === "ADMIN" ||
+            (
+              currentUserId != null &&
+              selectedTask.teamId &&
+              teamResponses.some(
+                (t) => String(t.id) === String(selectedTask.teamId) && Number(t.teamLeaderId) === Number(currentUserId)
+              )
             )
           )}
           onTaskUpdated={(updated) => {
