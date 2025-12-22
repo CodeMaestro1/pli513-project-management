@@ -17,6 +17,7 @@ declare module "@/services/tasks" {
 
     export declare const taskService: {
         listMyTasks(): Promise<Task[]>;
+        listByTeam(teamId: string): Promise<Task[]>;
         create(payload: CreateTaskPayload): Promise<Task>;
         update(taskId: string, payload: UpdateTaskPayload): Promise<Task>;
         updateStatus(taskId: string, status: TaskStatus): Promise<Task>;

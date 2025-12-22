@@ -21,7 +21,8 @@ public class TeamController {
     private final TeamService teamService;
 
     /**
-     * Creates a new team. This endpoint is only accessible by users with the ADMIN role.
+     * Creates a new team. This endpoint is only accessible by users with the ADMIN
+     * role.
      *
      * @param teamRequest The details of the team to create.
      * @return The newly created team.
@@ -68,7 +69,7 @@ public class TeamController {
      * Accessible only by the Team's Leader. [cite: 117]
      */
     @PatchMapping("/{teamId}/add-member")
-    @PreAuthorize("@teamService.isTeamLeader(authentication, #teamId)")
+    @PreAuthorize("hasRole('ADMIN') or @teamService.isTeamLeader(authentication, #teamId)")
     public ResponseEntity<TeamResponse> addMember(
             @PathVariable String teamId,
             @RequestBody MemberUpdateRequest request) {
@@ -78,6 +79,7 @@ public class TeamController {
     /**
      * Deletes a team by its ID.
      * Accessible only by users with the ADMIN role.
+     * 
      * @param teamId The ID of the team to delete.
      */
     @DeleteMapping("/{teamId}")
@@ -92,7 +94,7 @@ public class TeamController {
      * Accessible only by the Team's Leader.
      */
     @PatchMapping("/{teamId}/remove-member")
-    @PreAuthorize("@teamService.isTeamLeader(authentication, #teamId)")
+    @PreAuthorize("hasRole('ADMIN') or @teamService.isTeamLeader(authentication, #teamId)")
     public ResponseEntity<TeamResponse> removeMember(
             @PathVariable String teamId,
             @RequestBody MemberUpdateRequest request) {

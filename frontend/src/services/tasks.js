@@ -5,6 +5,11 @@ export const taskService = {
     const res = await taskApi.get('/api/v1/tasks/my-tasks');
     return res.data;
   },
+  async listByTeam(teamId) {
+    if (!teamId) throw new Error('listByTeam requires teamId');
+    const res = await taskApi.get(`/api/v1/tasks/team/${teamId}`);
+    return res.data;
+  },
   async create(payload) {
     const res = await taskApi.post('/api/v1/tasks', payload);
     return res.data;

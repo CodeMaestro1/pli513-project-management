@@ -1,6 +1,7 @@
 package com.pms.userservice.service.impl;
 
 import com.pms.userservice.dto.RegisterResponse;
+import com.pms.userservice.dto.PublicUserNameResponse;
 import com.pms.userservice.exception.UserNotFoundException;
 import com.pms.userservice.model.Role;
 import com.pms.userservice.model.Status;
@@ -11,7 +12,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -114,11 +117,41 @@ public class UserServiceImpl implements UserService {
         return toUserResponse(savedUser);
     }
 
+    @Override
+    public List<PublicUserNameResponse> getPublicUserNames(List<Long> ids) {
+        if (ids == null || ids.isEmpty())
+            return List.of();
+
+        // Fetch in bulk; repository returns in arbitrary order.
+        List<User> users = userRepository.findAllById(ids);
+        Map<Long, String> nameById = new HashMap<>();
+        for (User u : users) {
+            if (u == null || u.getId() == null)
+                continue;
+            String fullName = ((u.getFirstName() == null ? "" : u.getFirstName().trim()) + " "
+                    + (u.getLastName() == null ? "" : u.getLastName().trim())).trim();
+            String displayName = !fullName.isBlank() ? fullName
+                    : (u.getUsername() != null ? u.getUsername() : "User #" + u.getId());
+            nameById.put(u.getId(), displayName);
+        }
+
+        // Preserve request order for UI convenience.
+        return ids.stream()
+                .distinct()
+                .map(id -> PublicUserNameResponse.builder()
+                        .id(id)
+                        .displayName(nameById.getOrDefault(id, "User #" + id))
+                        .build())
+                .toList();
+    }
+
     private RegisterResponse toUserResponse(User user) {
         return RegisterResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
                 .role(user.getRole())
                 .status(user.getStatus())
                 .createdAt(user.getCreatedAt())

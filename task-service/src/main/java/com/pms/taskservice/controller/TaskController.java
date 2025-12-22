@@ -21,9 +21,9 @@ public class TaskController {
 
     private final TaskService taskService;
 
-    // --- 1. Create Task (Leader Only) ---
+    // --- 1. Create Task (Leader OR Admin) ---
     @PostMapping
-    @PreAuthorize("hasRole('LEADER')")
+    @PreAuthorize("hasAnyRole('LEADER','ADMIN')")
     public ResponseEntity<@NonNull TaskResponse> createTask(@RequestBody TaskRequest request, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         return new ResponseEntity<>(taskService.createTask(request, userId), HttpStatus.CREATED);
@@ -32,7 +32,7 @@ public class TaskController {
     // --- 2. Get Tasks by Team ---
     @GetMapping("/team/{teamId}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<@NonNull List< TaskResponse>> getTasksByTeam(@PathVariable String teamId) {
+    public ResponseEntity<@NonNull List<TaskResponse>> getTasksByTeam(@PathVariable String teamId) {
         return ResponseEntity.ok(taskService.getTasksByTeam(teamId));
     }
 

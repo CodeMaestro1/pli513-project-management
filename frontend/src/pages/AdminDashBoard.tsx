@@ -35,6 +35,15 @@ import { adminService } from "@/services/admin";
 import { useAuth } from "@/context/AuthContext";
 import { useTaskOperations } from "@/hooks/useTaskOperations";
 
+type TeamApiResponse = {
+  id: string;
+  name: string;
+  description: string;
+  createdAt?: string;
+  teamLeaderId?: number;
+  memberIds?: number[];
+};
+
 type DashboardRole = "admin" | "leader" | "member";
 type DashboardStatus = "active" | "disabled";
 
@@ -86,6 +95,10 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
+  const [showTeamDetailsModal, setShowTeamDetailsModal] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [teamMembersDraft, setTeamMembersDraft] = useState<string[]>([]);
+  const [savingTeamMembers, setSavingTeamMembers] = useState(false);
 
   const [newTeam, setNewTeam] = useState({ name: "", description: "", leaderId: "", memberIds: [] as string[] });
 
@@ -93,7 +106,8 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
 
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamResponses, setTeamResponses] = useState<TeamApiResponse[]>([]);
+  const [creatingTeam, setCreatingTeam] = useState(false);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -114,7 +128,7 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
   // Here we'll just prioritize the hook error if present
   const displayTasksError = hookTasksError || tasksError;
 
-  const handleDeleteTask = (taskId: string) => 
+  const handleDeleteTask = (taskId: string) =>
     handleDeleteTaskWrapper(taskId, selectedTask, setSelectedTask);
 
   const handleUpdateTaskStatus = (taskId: string, status: Task["status"]) =>
@@ -163,6 +177,39 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     });
   }, [adminUsers]);
 
+  const teams = useMemo<Team[]>(() => {
+    return teamResponses.map((t) => {
+      const leaderUser = dashboardUsers.find((u) => String(u.raw?.id) === String(t.teamLeaderId));
+      const memberIds = (t.memberIds ?? []).map((id) => String(id));
+      const tasksCount = allTasks.filter((task) => String(task.teamId ?? "") === String(t.id)).length;
+
+      return {
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        leader: leaderUser?.name ?? "",
+        memberIds,
+        createdDate: formatDate(t.createdAt),
+        tasksCount,
+      };
+    });
+  }, [teamResponses, dashboardUsers, allTasks]);
+
+  const selectedTeamResponse = useMemo(() => {
+    if (!selectedTeamId) return undefined;
+    return teamResponses.find((t) => String(t.id) === String(selectedTeamId));
+  }, [teamResponses, selectedTeamId]);
+
+  const selectedTeam = useMemo(() => {
+    if (!selectedTeamId) return undefined;
+    return teams.find((t) => String(t.id) === String(selectedTeamId));
+  }, [teams, selectedTeamId]);
+
+  const selectedTeamTasks = useMemo(() => {
+    if (!selectedTeamId) return [];
+    return allTasks.filter((t) => String(t.teamId ?? "") === String(selectedTeamId));
+  }, [allTasks, selectedTeamId]);
+
   // Close menus/modals on outside click + ESC
   useEffect(() => {
     const onDocMouseDown = (e: MouseEvent) => {
@@ -198,10 +245,10 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
       try {
         const [tasksRes, teamsRes] = await Promise.all([
           taskService.listMyTasks(),
-          teamService.listMyTeams().catch(() => []),
+          teamService.listAllTeams().catch(() => []),
         ]);
         setAllTasks(Array.isArray(tasksRes) ? tasksRes : []);
-        setTeams(Array.isArray(teamsRes) ? teamsRes : []);
+        setTeamResponses(Array.isArray(teamsRes) ? (teamsRes as TeamApiResponse[]) : []);
       } catch (e) {
         setTasksError(getErrorMessage(e));
         setAllTasks([]);
@@ -281,20 +328,117 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     }
   };
 
-  const handleCreateTeam = (teamData: Omit<Team, "id" | "createdDate" | "tasksCount">) => {
-    const created: Team = {
-      ...teamData,
-      id: `team-${Date.now()}`,
-      createdDate: "Just now",
-      tasksCount: 0
-    };
-    setTeams([...teams, created]);
+  const handleCreateTeam = async () => {
+    if (!newTeam.name || !newTeam.leaderId) {
+      setUsersError("Team name and leader are required.");
+      return;
+    }
+
+    setUsersError(null);
+    setCreatingTeam(true);
+    try {
+      const teamLeaderId = Number(newTeam.leaderId);
+      if (!Number.isFinite(teamLeaderId)) {
+        setUsersError("Invalid leader selected.");
+        return;
+      }
+
+      let createdTeam = (await teamService.create({
+        name: newTeam.name,
+        description: newTeam.description,
+        teamLeaderId,
+      })) as unknown as TeamApiResponse;
+
+      const additionalMemberIds = Array.from(
+        new Set(newTeam.memberIds.filter((id) => id && id !== newTeam.leaderId))
+      );
+
+      for (const memberId of additionalMemberIds) {
+        const userId = Number(memberId);
+        if (!Number.isFinite(userId)) continue;
+        createdTeam = (await teamService.updateMembers(createdTeam.id, { action: "add", userId })) as unknown as TeamApiResponse;
+      }
+
+      setTeamResponses((prev) => [...prev, createdTeam]);
+      setNewTeam({ name: "", description: "", leaderId: "", memberIds: [] });
+      setShowCreateTeamModal(false);
+    } catch (e) {
+      setUsersError(getErrorMessage(e));
+    } finally {
+      setCreatingTeam(false);
+    }
   };
 
-  const handleDeleteTeam = (teamId: string) => {
-    // Optional: also remove tasks assigned to this team (depends on your product rules)
-    setTeams(teams.filter(t => t.id !== teamId));
-    setAllTasks(allTasks.map(t => (t.teamId === teamId ? { ...t, teamId: "" } : t)));
+  const handleCreateTeamWrapper = () => {
+    if (newTeam.name && newTeam.leaderId) {
+      void handleCreateTeam();
+    }
+  };
+
+  const handleDeleteTeam = async (teamId: string) => {
+    setUsersError(null);
+    try {
+      await teamService.remove(teamId);
+      setTeamResponses((prev) => prev.filter((t) => String(t.id) !== String(teamId)));
+      setAllTasks((prev) => prev.map((t) => (t.teamId === teamId ? { ...t, teamId: "" } : t)));
+    } catch (e) {
+      setUsersError(getErrorMessage(e));
+    }
+  };
+
+  const openTeamDetails = (teamId: string) => {
+    setUsersError(null);
+    setSelectedTeamId(teamId);
+    const existing = teams.find((t) => String(t.id) === String(teamId));
+    setTeamMembersDraft(existing?.memberIds ?? []);
+    setShowTeamDetailsModal(true);
+  };
+
+  const closeTeamDetails = () => {
+    setShowTeamDetailsModal(false);
+    setSelectedTeamId(null);
+    setTeamMembersDraft([]);
+    setSavingTeamMembers(false);
+  };
+
+  const handleSaveTeamMembers = async () => {
+    if (!selectedTeamResponse) return;
+    const teamId = selectedTeamResponse.id;
+    const leaderId = selectedTeamResponse.teamLeaderId;
+    if (!teamId || !Number.isFinite(leaderId)) {
+      setUsersError("Unable to edit team members.");
+      return;
+    }
+
+    setUsersError(null);
+    setSavingTeamMembers(true);
+    try {
+      const currentMembers = new Set((selectedTeamResponse.memberIds ?? []).map((id) => String(id)));
+      const desiredMembers = new Set(teamMembersDraft.map(String));
+      desiredMembers.add(String(leaderId)); // always keep leader as member
+
+      const toAdd = Array.from(desiredMembers).filter((id) => !currentMembers.has(id));
+      const toRemove = Array.from(currentMembers).filter((id) => !desiredMembers.has(id) && id !== String(leaderId));
+
+      let latest = selectedTeamResponse as TeamApiResponse;
+      for (const id of toAdd) {
+        const userId = Number(id);
+        if (!Number.isFinite(userId)) continue;
+        latest = (await teamService.updateMembers(teamId, { action: "add", userId })) as unknown as TeamApiResponse;
+      }
+      for (const id of toRemove) {
+        const userId = Number(id);
+        if (!Number.isFinite(userId)) continue;
+        latest = (await teamService.updateMembers(teamId, { action: "remove", userId })) as unknown as TeamApiResponse;
+      }
+
+      setTeamResponses((prev) => prev.map((t) => (String(t.id) === String(teamId) ? latest : t)));
+      closeTeamDetails();
+    } catch (e) {
+      setUsersError(getErrorMessage(e));
+    } finally {
+      setSavingTeamMembers(false);
+    }
   };
 
   const getRoleBadgeColor = (role: DashboardUser["role"]) => {
@@ -475,41 +619,36 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
             <div className="flex flex-wrap gap-1 p-2">
               <button
                 onClick={() => setActiveTab("overview")}
-                className={`px-6 py-3 rounded-lg transition-all whitespace-nowrap ${
-                  activeTab === "overview" ? "bg-purple-100 text-purple-700" : "text-slate-600 hover:bg-slate-50"
-                }`}
+                className={`px-6 py-3 rounded-lg transition-all whitespace-nowrap ${activeTab === "overview" ? "bg-purple-100 text-purple-700" : "text-slate-600 hover:bg-slate-50"
+                  }`}
               >
                 Overview
               </button>
               <button
                 onClick={() => setActiveTab("mytasks")}
-                className={`px-6 py-3 rounded-lg transition-all whitespace-nowrap ${
-                  activeTab === "mytasks" ? "bg-purple-100 text-purple-700" : "text-slate-600 hover:bg-slate-50"
-                }`}
+                className={`px-6 py-3 rounded-lg transition-all whitespace-nowrap ${activeTab === "mytasks" ? "bg-purple-100 text-purple-700" : "text-slate-600 hover:bg-slate-50"
+                  }`}
               >
                 My Tasks ({stats.myTasksCount})
               </button>
               <button
                 onClick={() => setActiveTab("users")}
-                className={`px-6 py-3 rounded-lg transition-all whitespace-nowrap ${
-                  activeTab === "users" ? "bg-purple-100 text-purple-700" : "text-slate-600 hover:bg-slate-50"
-                }`}
+                className={`px-6 py-3 rounded-lg transition-all whitespace-nowrap ${activeTab === "users" ? "bg-purple-100 text-purple-700" : "text-slate-600 hover:bg-slate-50"
+                  }`}
               >
                 All Users ({dashboardUsers.length})
               </button>
               <button
                 onClick={() => setActiveTab("teams")}
-                className={`px-6 py-3 rounded-lg transition-all whitespace-nowrap ${
-                  activeTab === "teams" ? "bg-purple-100 text-purple-700" : "text-slate-600 hover:bg-slate-50"
-                }`}
+                className={`px-6 py-3 rounded-lg transition-all whitespace-nowrap ${activeTab === "teams" ? "bg-purple-100 text-purple-700" : "text-slate-600 hover:bg-slate-50"
+                  }`}
               >
                 Teams ({teams.length})
               </button>
               <button
                 onClick={() => setActiveTab("pending")}
-                className={`px-6 py-3 rounded-lg transition-all relative whitespace-nowrap ${
-                  activeTab === "pending" ? "bg-purple-100 text-purple-700" : "text-slate-600 hover:bg-slate-50"
-                }`}
+                className={`px-6 py-3 rounded-lg transition-all relative whitespace-nowrap ${activeTab === "pending" ? "bg-purple-100 text-purple-700" : "text-slate-600 hover:bg-slate-50"
+                  }`}
               >
                 Pending ({pendingAdminUsers.length})
                 {pendingAdminUsers.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-amber-500 rounded-full" />}
@@ -906,20 +1045,18 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                   {filteredUsers.map(user => (
                     <div
                       key={user.id}
-                      className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
-                        user.status === "disabled"
-                          ? "bg-slate-50 border-slate-200 opacity-60"
-                          : "bg-white border-slate-200 hover:border-purple-300 hover:shadow-md"
-                      }`}
+                      className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${user.status === "disabled"
+                        ? "bg-slate-50 border-slate-200 opacity-60"
+                        : "bg-white border-slate-200 hover:border-purple-300 hover:shadow-md"
+                        }`}
                     >
                       {/* Avatar */}
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-white shrink-0 ${
-                        user.role === "admin" 
-                          ? "bg-linear-to-br from-purple-500 to-purple-600"
-                          : user.role === "leader"
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-white shrink-0 ${user.role === "admin"
+                        ? "bg-linear-to-br from-purple-500 to-purple-600"
+                        : user.role === "leader"
                           ? "bg-linear-to-br from-sky-400 to-sky-500"
                           : "bg-linear-to-br from-slate-400 to-slate-500"
-                      }`}>
+                        }`}>
                         {user.name.split(" ").map(n => n[0]).join("")}
                       </div>
 
@@ -1037,7 +1174,10 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                           {openActionMenu === team.id && (
                             <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-10">
                               <button
-                                onClick={() => setOpenActionMenu(null)}
+                                onClick={() => {
+                                  openTeamDetails(team.id);
+                                  setOpenActionMenu(null);
+                                }}
                                 className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
                               >
                                 <Edit className="w-4 h-4" />
@@ -1045,7 +1185,7 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                               </button>
                               <button
                                 onClick={() => {
-                                  handleDeleteTeam(team.id);
+                                  void handleDeleteTeam(team.id);
                                   setOpenActionMenu(null);
                                 }}
                                 className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-red-600"
@@ -1169,28 +1309,146 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
 
                         <div className="flex gap-2 pt-4">
                           <Button
-                            onClick={() => {
-                              if (newTeam.name && newTeam.leaderId) {
-                                const leader = dashboardUsers.find(u => u.id === newTeam.leaderId);
-                                handleCreateTeam({
-                                  name: newTeam.name,
-                                  description: newTeam.description,
-                                  leader: leader?.name || "",
-                                  memberIds: [newTeam.leaderId, ...newTeam.memberIds]
-                                });
-                                setNewTeam({ name: "", description: "", leaderId: "", memberIds: [] });
-                                setShowCreateTeamModal(false);
-                              }
-                            }}
+                            onClick={handleCreateTeamWrapper}
                             className="flex-1 bg-purple-500 hover:bg-purple-600 text-white"
-                            disabled={!newTeam.name || !newTeam.leaderId}
+                            disabled={!newTeam.name || !newTeam.leaderId || creatingTeam}
                           >
-                            Create Team
+                            {creatingTeam ? "Creating..." : "Create Team"}
                           </Button>
                           <Button
                             onClick={() => setShowCreateTeamModal(false)}
                             variant="outline"
                             className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Team Details / Edit Members Modal */}
+                {showTeamDetailsModal && selectedTeam && selectedTeamResponse && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-8 max-h-[90vh] overflow-y-auto">
+                      <div className="flex items-center justify-between mb-6">
+                        <div>
+                          <h3 className="text-2xl">Team Details</h3>
+                          <p className="text-sm text-slate-600">View and edit team members</p>
+                        </div>
+                        <button
+                          onClick={closeTeamDetails}
+                          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                          <X className="w-5 h-5 text-slate-600" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-6">
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                            <div className="text-xs text-slate-500 mb-1">Name</div>
+                            <div className="font-medium">{selectedTeam.name}</div>
+                          </div>
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                            <div className="text-xs text-slate-500 mb-1">Leader</div>
+                            <div className="font-medium">{selectedTeam.leader || "—"}</div>
+                          </div>
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 md:col-span-2">
+                            <div className="text-xs text-slate-500 mb-1">Description</div>
+                            <div className="text-sm text-slate-700">{selectedTeam.description || "—"}</div>
+                          </div>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-6">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium">Members</h4>
+                              <span className="text-xs text-slate-500">{teamMembersDraft.length} selected</span>
+                            </div>
+
+                            <div className="border border-slate-300 rounded-lg p-4 max-h-80 overflow-y-auto">
+                              {dashboardUsers
+                                .filter((u) => u.status === "active" && u.role !== "admin")
+                                .map((u) => {
+                                  const leaderId = String(selectedTeamResponse.teamLeaderId);
+                                  const isLeader = String(u.id) === leaderId;
+                                  const checked = teamMembersDraft.includes(String(u.id)) || isLeader;
+
+                                  return (
+                                    <label
+                                      key={u.id}
+                                      className={`flex items-center gap-2 p-2 rounded cursor-pointer ${isLeader ? "opacity-80" : "hover:bg-slate-50"}`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        disabled={isLeader}
+                                        onChange={(e) => {
+                                          const id = String(u.id);
+                                          if (e.target.checked) {
+                                            setTeamMembersDraft((prev) => (prev.includes(id) ? prev : [...prev, id]));
+                                          } else {
+                                            setTeamMembersDraft((prev) => prev.filter((x) => x !== id));
+                                          }
+                                        }}
+                                        className="rounded border-slate-300"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium truncate">{u.name}</div>
+                                        <div className="text-xs text-slate-500 truncate">{u.email}</div>
+                                      </div>
+                                      {isLeader ? (
+                                        <span className="text-xs px-2 py-0.5 rounded-full border bg-sky-100 text-sky-700 border-sky-200">
+                                          Leader
+                                        </span>
+                                      ) : null}
+                                    </label>
+                                  );
+                                })}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium">Team Tasks</h4>
+                              <span className="text-xs text-slate-500">{selectedTeamTasks.length} tasks</span>
+                            </div>
+
+                            <div className="border border-slate-300 rounded-lg p-4 max-h-80 overflow-y-auto">
+                              {selectedTeamTasks.length === 0 ? (
+                                <div className="text-sm text-slate-600">No tasks assigned to this team.</div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {selectedTeamTasks.map((t) => (
+                                    <div key={t.id} className="p-3 rounded-lg border border-slate-200 bg-white">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="font-medium text-sm truncate">{t.title}</div>
+                                        <div className={`text-xs ${getPriorityColor(t.priority)}`}>{t.priority}</div>
+                                      </div>
+                                      <div className="text-xs text-slate-500">Status: {t.status}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            onClick={() => void handleSaveTeamMembers()}
+                            className="flex-1 bg-purple-500 hover:bg-purple-600 text-white"
+                            disabled={savingTeamMembers}
+                          >
+                            {savingTeamMembers ? "Saving..." : "Save Changes"}
+                          </Button>
+                          <Button
+                            onClick={closeTeamDetails}
+                            variant="outline"
+                            className="flex-1"
+                            disabled={savingTeamMembers}
                           >
                             Cancel
                           </Button>
