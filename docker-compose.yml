@@ -1,8 +1,21 @@
+x-db-defaults: &db_defaults
+  networks:
+    - pms-network
+  env_file: .env
+  restart: unless-stopped
+
+x-app-defaults: &app_defaults
+  networks:
+    - pms-network
+  env_file: .env
+  restart: on-failure
+
 services:
   # --- 1. User Service & DB ---
   mysql-db:
     image: mysql:8.0
     container_name: mysql-db
+    <<: *db_defaults
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: pms_user_service
@@ -10,14 +23,17 @@ services:
       - "3307:3306"
     volumes:
       - user-db-data:/var/lib/mysql
-    networks:
-      - pms-network
-    env_file: .env
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   user-service:
     build: ./user-service
     container_name: user-service
-    restart: on-failure
+    <<: *app_defaults
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/pms_user_service
       SPRING_DATASOURCE_USERNAME: root
@@ -25,16 +41,15 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQLDialect
       APPLICATION_SECURITY_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-    networks:
-      - pms-network
     depends_on:
-      - mysql-db
-    env_file: .env
+      mysql-db:
+        condition: service_healthy
 
   # --- 2. Team Service & DB ---
   mongo-db:
     image: mongo:7
     container_name: mongo-db
+    <<: *db_defaults
     ports:
       - "27017:27017"
     environment:
@@ -42,27 +57,29 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_DB_PASSWORD}
     volumes:
       - mongo-data:/data/db
-    networks:
-      - pms-network
-    env_file: .env
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   team-service:
     build: ./team-service
     container_name: team-service
-    restart: on-failure
+    <<: *app_defaults
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://root:${MONGO_DB_PASSWORD}@mongo-db:27017/pms_team_service?authSource=admin
       APPLICATION_SECURITY_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-    networks:
-      - pms-network
     depends_on:
-      - mongo-db
-    env_file: .env
+      mongo-db:
+        condition: service_healthy
 
   # --- 3. Task Service & DB ---
   task-mongodb:
     image: mongo:7
     container_name: task-mongodb
+    <<: *db_defaults
     ports:
       - "27018:27017"
     environment:
@@ -70,31 +87,31 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_DB_PASSWORD}
     volumes:
       - task-mongo-data:/data/db
-    networks:
-      - pms-network
-    env_file: .env
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   task-service:
     build: ./task-service
     container_name: task-service
-    restart: on-failure
+    <<: *app_defaults
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://root:${MONGO_DB_PASSWORD}@task-mongodb:27017/pms_task_service?authSource=admin
       APPLICATION_SECURITY_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-    networks:
-      - pms-network
     depends_on:
-      - task-mongodb
-    env_file: .env
+      task-mongodb:
+        condition: service_healthy
 
   # --- 4. Frontend (The Gateway) ---
   frontend:
     build: ./frontend
     container_name: frontend
+    <<: *app_defaults
     ports:
       - "80:80" # Access the app at http://localhost
-    networks:
-      - pms-network
     depends_on:
       - user-service
       - team-service

@@ -1543,12 +1543,12 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                     <div
                       key={user.id}
                       className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${user.status === "disabled"
-                        ? "bg-slate-50 border-slate-200 opacity-60"
+                        ? "bg-slate-50 border-slate-200"
                         : "bg-white border-slate-200 hover:border-purple-300 hover:shadow-md"
                         }`}
                     >
                       {/* Avatar */}
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-white shrink-0 ${user.role === "admin"
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-white shrink-0 ${user.status === "disabled" ? "opacity-60" : ""} ${user.role === "admin"
                         ? "bg-linear-to-br from-purple-500 to-purple-600"
                         : user.role === "leader"
                           ? "bg-linear-to-br from-sky-400 to-sky-500"
@@ -1558,7 +1558,7 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                       </div>
 
                       {/* User Info */}
-                      <div className="flex-1 min-w-0">
+                      <div className={`flex-1 min-w-0 ${user.status === "disabled" ? "opacity-60" : ""}`}>
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="font-medium">{user.name}</h4>
                           <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${getRoleBadgeColor(user.role)}`}>

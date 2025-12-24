@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Mail, Lock, ArrowRight } from "lucide-react";
+import { Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,15 +10,32 @@ import { useNavigate } from 'react-router-dom';
 export const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-  const { login, error, loading} = useAuth();
-  
+  const { login, error, loading } = useAuth();
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const result = await login(username, password);
     if (result?.success) {
+      const status = typeof result.user?.status === 'string' ? result.user.status.toUpperCase() : undefined;
+      if (status === 'PENDING' && result.user?.email) {
+        navigate("/pending-approval", { state: { userEmail: result.user.email } });
+        return;
+      }
+      if (status === 'DISABLED' && result.user?.email) {
+        navigate("/disabled-account", { state: { userEmail: result.user.email } });
+        return;
+      }
       navigate("/dashboard");
+      return;
+    }
+
+    if (result?.code === 'ACCOUNT_NOT_ACTIVE') {
+      // Backend rejects login for disabled users (403), so we redirect based on that signal.
+      // We don't have the email from the backend in this case; show what the user typed.
+      navigate('/disabled-account', { state: { userEmail: username } });
     }
   };
 
@@ -88,12 +105,27 @@ export const Login = () => {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="pl-11"
+                  className="pl-11 pr-11"
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </Button>
               </div>
             </div>
 
@@ -104,12 +136,13 @@ export const Login = () => {
                   Remember me
                 </span>
               </label>
-              <a
-                href="#"
+              <button
+                type="button"
+                onClick={() => navigate('/forgot-password')}
                 className="text-sky-500 hover:text-sky-600 transition-colors"
               >
                 Forgot password?
-              </a>
+              </button>
             </div>
 
             <Button
