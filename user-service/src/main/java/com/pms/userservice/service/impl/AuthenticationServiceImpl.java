@@ -73,6 +73,17 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Override
     public LoginResponse login(LoginRequest request) {
 
+        // Check status explicitly so clients can distinguish PENDING vs DISABLED.
+        userRepository.findByUsername(request.getUsername())
+                .ifPresent(user -> {
+                    if (user.getStatus() == Status.PENDING) {
+                        throw new AccountNotActiveException("Your account is pending approval.", "ACCOUNT_PENDING");
+                    }
+                    if (user.getStatus() == Status.DISABLED) {
+                        throw new AccountNotActiveException("Your account has been disabled.", "ACCOUNT_DISABLED");
+                    }
+                });
+
         try {
             // 1. Let AuthenticationManager do the work
             // It will check the username, check the password,
@@ -84,7 +95,19 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                             request.getUsername(),
                             request.getPassword()));
         } catch (DisabledException e) {
-            throw new AccountNotActiveException("Your account is pending approval or has been disabled.");
+            // Fallback: AuthenticationProvider collapses non-ACTIVE users into
+            // DisabledException.
+            // Re-check status so we can return an explicit reason.
+            Status status = userRepository.findByUsername(request.getUsername())
+                    .map(User::getStatus)
+                    .orElse(null);
+            if (status == Status.PENDING) {
+                throw new AccountNotActiveException("Your account is pending approval.", "ACCOUNT_PENDING");
+            }
+            if (status == Status.DISABLED) {
+                throw new AccountNotActiveException("Your account has been disabled.", "ACCOUNT_DISABLED");
+            }
+            throw new AccountNotActiveException("Your account is not active.", "ACCOUNT_NOT_ACTIVE");
         } catch (BadCredentialsException e) {
             // This is caught when the password is wrong
             throw new InvalidCredentialsException("Invalid username or password");

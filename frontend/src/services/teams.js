@@ -13,6 +13,11 @@ export const teamService = {
     const res = await teamApi.post('/api/v1/teams', payload);
     return res.data;
   },
+  async updateTeam(teamId, payload) {
+    if (!teamId) throw new Error('updateTeam requires teamId');
+    const res = await teamApi.put(`/api/v1/teams/${teamId}`, payload);
+    return res.data;
+  },
   async remove(teamId) {
     if (!teamId) throw new Error('remove requires teamId');
     await teamApi.delete(`/api/v1/teams/${teamId}`);

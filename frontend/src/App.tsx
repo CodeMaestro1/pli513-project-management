@@ -13,7 +13,6 @@ const ForgotPassword = (await import('react')).lazy(() => import("./pages/Forgot
 const Dashboard = (await import('react')).lazy(() => import("./pages/Dashboard.tsx").then((m) => ({ default: m.Dashboard })));
 const AdminDashboard = (await import('react')).lazy(() => import("./pages/AdminDashBoard.tsx").then((m) => ({ default: m.AdminDashboard })));
 const Profile = (await import('react')).lazy(() => import("./pages/Profile.tsx").then((m) => ({ default: m.Profile })));
-const Placeholder = (await import('react')).lazy(() => import("./pages/Placeholder.tsx"));
 const DisabledAccount = (await import('react')).lazy(() => import("./pages/DisabledAccount.tsx").then((m) => ({ default: m.DisabledAccount })));
 
 function PrivateRoute({ children }: { children: React.JSX.Element }) {
@@ -26,7 +25,7 @@ function PrivateRoute({ children }: { children: React.JSX.Element }) {
     return <Navigate to="/pending-approval" state={{ userEmail: user.email }} replace />;
   }
   if (status === 'DISABLED' && user?.email) {
-    return <Navigate to="/DisabledAccount" state={{ userEmail: user.email }} replace />;
+    return <Navigate to="/disabled-account" state={{ userEmail: user.email }} replace />;
   }
 
   return children;
@@ -142,7 +141,6 @@ export default function App() {
               </PrivateRoute>
             }
           />
-          <Route path="/Placeholder" element={<PrivateRoute><Placeholder /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

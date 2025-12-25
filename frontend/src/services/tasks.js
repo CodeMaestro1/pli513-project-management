@@ -1,17 +1,20 @@
 import { taskApi } from './api';
 
 export const taskService = {
-  async listAllTasks() {
-    const res = await taskApi.get('/api/v1/tasks');
+  async listAllTasks(params) {
+    const res = await taskApi.get('/api/v1/tasks', params ? { params } : undefined);
+    if (res.status === 204 || res.data == null) return [];
     return res.data;
   },
-  async listMyTasks() {
-    const res = await taskApi.get('/api/v1/tasks/my-tasks');
+  async listMyTasks(params) {
+    const res = await taskApi.get('/api/v1/tasks/my-tasks', params ? { params } : undefined);
+    if (res.status === 204 || res.data == null) return [];
     return res.data;
   },
-  async listByTeam(teamId) {
+  async listByTeam(teamId, params) {
     if (!teamId) throw new Error('listByTeam requires teamId');
-    const res = await taskApi.get(`/api/v1/tasks/team/${teamId}`);
+    const res = await taskApi.get(`/api/v1/tasks/team/${teamId}`, params ? { params } : undefined);
+    if (res.status === 204 || res.data == null) return [];
     return res.data;
   },
   async create(payload) {

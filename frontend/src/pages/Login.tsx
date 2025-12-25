@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,11 @@ export const Login = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-  const { login, error, loading } = useAuth();
+  const { login, error, loading, clearError } = useAuth();
+
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,8 +36,14 @@ export const Login = () => {
       return;
     }
 
-    if (result?.code === 'ACCOUNT_NOT_ACTIVE') {
-      // Backend rejects login for disabled users (403), so we redirect based on that signal.
+    if (result?.code === 'ACCOUNT_PENDING') {
+      // Backend rejected login (403) because the account is pending approval.
+      navigate('/pending-approval', { state: { userEmail: username } });
+      return;
+    }
+
+    if (result?.code === 'ACCOUNT_DISABLED' || result?.code === 'ACCOUNT_NOT_ACTIVE') {
+      // Backend rejected login (403) because the account is not active.
       // We don't have the email from the backend in this case; show what the user typed.
       navigate('/disabled-account', { state: { userEmail: username } });
     }

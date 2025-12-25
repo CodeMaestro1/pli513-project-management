@@ -11,58 +11,58 @@ import java.time.Instant;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(UserNotFoundException.class)
-    public ResponseEntity<ErrorDto> handleUserNotFound(
-            UserNotFoundException ex) {
+        @ExceptionHandler(UserNotFoundException.class)
+        public ResponseEntity<ErrorDto> handleUserNotFound(
+                        UserNotFoundException ex) {
 
-        ErrorDto error = ErrorDto.builder()
-                .timestamp(Instant.now())
-                .status(HttpStatus.NOT_FOUND.value()) // 404
-                .error("Not Found")
-                .message(ex.getMessage())
-                // 'path' field removed
-                .build();
+                ErrorDto error = ErrorDto.builder()
+                                .timestamp(Instant.now())
+                                .status(HttpStatus.NOT_FOUND.value()) // 404
+                                .error("Not Found")
+                                .message(ex.getMessage())
+                                // 'path' field removed
+                                .build();
 
-        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
-    }
+                return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+        }
 
-    @ExceptionHandler(DuplicateResourceException.class)
-    public ResponseEntity<ErrorDto> handleDuplicateResource(
-            DuplicateResourceException ex) {
+        @ExceptionHandler(DuplicateResourceException.class)
+        public ResponseEntity<ErrorDto> handleDuplicateResource(
+                        DuplicateResourceException ex) {
 
-        ErrorDto error = ErrorDto.builder()
-                .timestamp(Instant.now())
-                .status(HttpStatus.CONFLICT.value()) // 409
-                .error("Conflict")
-                .message(ex.getMessage())
-                .build();
+                ErrorDto error = ErrorDto.builder()
+                                .timestamp(Instant.now())
+                                .status(HttpStatus.CONFLICT.value()) // 409
+                                .error("Conflict")
+                                .message(ex.getMessage())
+                                .build();
 
-        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
-    }
+                return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+        }
 
-    @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<ErrorDto> handleInvalidCredentials(
-            InvalidCredentialsException ex
-    ){
-        ErrorDto error = ErrorDto.builder()
-                .timestamp(Instant.now())
-                .status(HttpStatus.UNAUTHORIZED.value())
-                .error("Unauthorized")
-                .message(ex.getMessage())
-                .build();
+        @ExceptionHandler(InvalidCredentialsException.class)
+        public ResponseEntity<ErrorDto> handleInvalidCredentials(
+                        InvalidCredentialsException ex) {
+                ErrorDto error = ErrorDto.builder()
+                                .timestamp(Instant.now())
+                                .status(HttpStatus.UNAUTHORIZED.value())
+                                .error("Unauthorized")
+                                .message(ex.getMessage())
+                                .build();
 
-        return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
-    }
+                return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+        }
 
-    @ExceptionHandler(AccountNotActiveException.class)
-    public ResponseEntity<ErrorDto> handleAccountNotActive(AccountNotActiveException ex) {
-        ErrorDto error = ErrorDto.builder()
-                .timestamp(Instant.now())
-                .status(HttpStatus.FORBIDDEN.value()) // 403
-                .error("Forbidden")
-                .message(ex.getMessage()) // "Your account is pending approval..."
-                .build();
+        @ExceptionHandler(AccountNotActiveException.class)
+        public ResponseEntity<ErrorDto> handleAccountNotActive(AccountNotActiveException ex) {
+                ErrorDto error = ErrorDto.builder()
+                                .timestamp(Instant.now())
+                                .status(HttpStatus.FORBIDDEN.value()) // 403
+                                .error("Forbidden")
+                                .message(ex.getMessage()) // "Your account is pending approval..."
+                                .code(ex.getCode())
+                                .build();
 
-        return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
-    }
+                return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
+        }
 }

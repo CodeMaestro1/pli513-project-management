@@ -22,7 +22,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -38,6 +44,7 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final TaskCommentRepository taskCommentRepository;
     private final RestTemplate restTemplate;
+    private final MongoTemplate mongoTemplate;
 
     @Value("${application.config.team-service-url:http://team-service:8081}")
     private String teamServiceBaseUrl;
@@ -110,8 +117,56 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    public List<TaskResponse> getAllTasks(Long assignedToId, LocalDate dueFrom, LocalDate dueTo) {
+        if (assignedToId == null && dueFrom == null && dueTo == null) {
+            return getAllTasks();
+        }
+
+        Query query = new Query();
+        List<Criteria> criteria = new ArrayList<>();
+
+        if (assignedToId != null) {
+            criteria.add(Criteria.where("assignedToId").is(assignedToId));
+        }
+
+        Criteria due = dueDateCriteria(dueFrom, dueTo);
+        if (due != null) {
+            criteria.add(due);
+        }
+
+        if (!criteria.isEmpty()) {
+            query.addCriteria(new Criteria().andOperator(criteria.toArray(new Criteria[0])));
+        }
+
+        return mongoTemplate.find(query, Task.class).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<TaskResponse> getTasksByTeam(String teamId) {
         return taskRepository.findByTeamId(teamId).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<TaskResponse> getTasksByTeam(String teamId, LocalDate dueFrom, LocalDate dueTo) {
+        if (dueFrom == null && dueTo == null) {
+            return getTasksByTeam(teamId);
+        }
+
+        Query query = new Query();
+        List<Criteria> criteria = new ArrayList<>();
+        criteria.add(Criteria.where("teamId").is(teamId));
+
+        Criteria due = dueDateCriteria(dueFrom, dueTo);
+        if (due != null) {
+            criteria.add(due);
+        }
+
+        query.addCriteria(new Criteria().andOperator(criteria.toArray(new Criteria[0])));
+        return mongoTemplate.find(query, Task.class).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -138,6 +193,68 @@ public class TaskServiceImpl implements TaskService {
                 .filter(t -> t != null && t.getId() != null && seen.add(t.getId()))
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<TaskResponse> getTasksByAssignedUser(Long userId, LocalDate dueFrom, LocalDate dueTo) {
+        if (dueFrom == null && dueTo == null) {
+            return getTasksByAssignedUser(userId);
+        }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !Objects.equals(auth.getPrincipal(), userId)) {
+            // Preserve original semantics: only include team tasks when caller is the same
+            // user.
+            // If not, fall back to the direct assignment-only query.
+            Query q = new Query();
+            List<Criteria> criteria = new ArrayList<>();
+            criteria.add(Criteria.where("assignedToId").is(userId));
+            Criteria due = dueDateCriteria(dueFrom, dueTo);
+            if (due != null)
+                criteria.add(due);
+            q.addCriteria(new Criteria().andOperator(criteria.toArray(new Criteria[0])));
+            return mongoTemplate.find(q, Task.class).stream().map(this::mapToResponse).collect(Collectors.toList());
+        }
+
+        List<String> teamIds = getMyTeamIds(auth);
+        Criteria visible;
+        if (teamIds != null && !teamIds.isEmpty()) {
+            visible = new Criteria().orOperator(
+                    Criteria.where("assignedToId").is(userId),
+                    Criteria.where("teamId").in(teamIds));
+        } else {
+            visible = Criteria.where("assignedToId").is(userId);
+        }
+
+        Query q = new Query();
+        List<Criteria> and = new ArrayList<>();
+        and.add(visible);
+
+        Criteria due = dueDateCriteria(dueFrom, dueTo);
+        if (due != null) {
+            and.add(due);
+        }
+        q.addCriteria(new Criteria().andOperator(and.toArray(new Criteria[0])));
+
+        return mongoTemplate.find(q, Task.class).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    private Criteria dueDateCriteria(LocalDate dueFrom, LocalDate dueTo) {
+        if (dueFrom == null && dueTo == null)
+            return null;
+
+        LocalDateTime from = dueFrom != null ? dueFrom.atStartOfDay() : null;
+        LocalDateTime to = dueTo != null ? LocalDateTime.of(dueTo, LocalTime.of(23, 59, 59, 999_000_000)) : null;
+
+        if (from != null && to != null) {
+            return Criteria.where("dueDate").gte(from).lte(to);
+        }
+        if (from != null) {
+            return Criteria.where("dueDate").gte(from);
+        }
+        return Criteria.where("dueDate").lte(to);
     }
 
     @Override
@@ -202,6 +319,19 @@ public class TaskServiceImpl implements TaskService {
         if (hasRole(authentication, "ROLE_ADMIN"))
             return true;
         return isMemberOfTeam(authentication, teamId);
+    }
+
+    @Override
+    public boolean canCreateTask(Authentication authentication, TaskRequest request) {
+        if (hasRole(authentication, "ROLE_ADMIN") || hasRole(authentication, "ROLE_LEADER"))
+            return true;
+        if (authentication == null)
+            return false;
+        Long callerUserId = (Long) authentication.getPrincipal();
+        if (request == null)
+            return false;
+        Long creatorId = request.getCreatorId();
+        return creatorId == null || Objects.equals(creatorId, callerUserId);
     }
 
     private boolean hasRole(Authentication authentication, String role) {

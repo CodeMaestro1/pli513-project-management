@@ -14,7 +14,7 @@ export function PendingApproval({ onBackToHome }: PendingApprovalProps) {
     <div className="w-full max-w-2xl mx-auto">
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
         {/* Header Section */}
-        <div className="bg-gradient-to-r from-amber-400 to-amber-500 p-8 text-center text-white">
+        <div className="bg-linear-to-r from-amber-400 to-amber-500 p-8 text-center text-white">
           <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
             <Clock className="w-10 h-10" />
           </div>
@@ -54,7 +54,7 @@ export function PendingApproval({ onBackToHome }: PendingApprovalProps) {
             {/* What's Next Section */}
             <div className="space-y-4">
               <h2 className="text-xl text-slate-800">What happens next?</h2>
-              
+
               <div className="space-y-3">
                 <div className="flex gap-3">
                   <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center shrink-0 text-sm font-medium">

@@ -2,12 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AuthContext } from './AuthContext';
 import { authService } from '../services/auth';
 import type { LoginResponse } from '../services/auth';
+import { normalizeApiError } from '../services/api.js';
 
 export type AuthContextValue = {
   token: string | null;
   user: User | null;
-  login: (username: string, password: string) => Promise<{ success: boolean; message?: string; user?: User; code?: 'ACCOUNT_NOT_ACTIVE' | 'INVALID_CREDENTIALS' | 'UNKNOWN' }>;
+  login: (username: string, password: string) => Promise<{ success: boolean; message?: string; user?: User; code?: 'ACCOUNT_PENDING' | 'ACCOUNT_DISABLED' | 'ACCOUNT_NOT_ACTIVE' | 'INVALID_CREDENTIALS' | 'UNKNOWN' }>;
   logout: () => void;
+  clearError: () => void;
   loading: boolean;
   error: string | null;
   isAuthenticated: boolean;
@@ -32,19 +34,23 @@ function normalizeUser(maybeUser: unknown): User | undefined {
   return { ...(maybeUser as object), status } as User;
 }
 
-function getErrorMessage(err: unknown): string {
-  if (typeof err === 'string') return err;
-  if (err && typeof err === 'object') {
-    const maybe = err as { message?: string; response?: { data?: { message?: string } } };
-    return maybe.response?.data?.message ?? maybe.message ?? 'Operation failed';
+function getNormalized(err: unknown): { status: number; code?: string; message: string } {
+  // If the Axios interceptor attached normalized error, use it.
+  if (err && typeof err === 'object' && 'normalized' in err) {
+    const n = (err as { normalized?: unknown }).normalized;
+    if (n && typeof n === 'object') {
+      const maybe = n as { status?: unknown; code?: unknown; message?: unknown };
+      return {
+        status: typeof maybe.status === 'number' ? maybe.status : 0,
+        code: typeof maybe.code === 'string' ? maybe.code : undefined,
+        message: typeof maybe.message === 'string' ? maybe.message : 'Operation failed',
+      };
+    }
   }
-  return 'Operation failed';
-}
 
-function getErrorStatus(err: unknown): number | undefined {
-  if (!err || typeof err !== 'object') return undefined;
-  const maybe = err as { response?: { status?: number } };
-  return maybe.response?.status;
+  // Fallback: normalize directly.
+  const n = normalizeApiError(err);
+  return { status: n.status, code: n.code, message: n.message };
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -52,6 +58,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  const clearError = () => setError(null);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -72,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null); // Fallback to null if `me` is invalid
         }
       } catch (e) {
-        setError(getErrorMessage(e) || 'Failed to load user');
+        setError(getNormalized(e).message || 'Failed to load user');
         logout();
       } finally {
         setLoading(false);
@@ -100,11 +108,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const normalizedMe = normalizeUser(me);
       if (normalizedMe) setUser(normalizedMe);
       return { success: true, user: normalizedMe };
-    } catch (error) {
-      const msg = getErrorMessage(error) || 'Login failed';
+    } catch (e) {
+      const { message: msg, status, code } = getNormalized(e);
+      // For "account not active" cases we redirect to a dedicated page.
+      // Avoid persisting an auth error that would show up when navigating back to Login.
+      if (status === 403) {
+        setError(null);
+        if (code === 'ACCOUNT_PENDING') return { success: false, message: msg, code: 'ACCOUNT_PENDING' as const };
+        if (code === 'ACCOUNT_DISABLED') return { success: false, message: msg, code: 'ACCOUNT_DISABLED' as const };
+        return { success: false, message: msg, code: 'ACCOUNT_NOT_ACTIVE' as const };
+      }
       setError(msg);
-      const status = getErrorStatus(error);
-      if (status === 403) return { success: false, message: msg, code: 'ACCOUNT_NOT_ACTIVE' as const };
       if (status === 401) return { success: false, message: msg, code: 'INVALID_CREDENTIALS' as const };
       return { success: false, message: msg, code: 'UNKNOWN' as const };
     } finally {
@@ -115,6 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setToken(null);
     setUser(null);
+    setError(null);
     localStorage.removeItem('token');
   };
 
@@ -123,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     login,
     logout,
+    clearError,
     loading,
     error,
     isAuthenticated: !!token,
