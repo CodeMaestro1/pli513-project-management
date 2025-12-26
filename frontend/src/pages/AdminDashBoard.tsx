@@ -16,7 +16,6 @@ import {
   Mail,
   Calendar,
   Filter,
-  Download,
   FolderKanban,
   ListTodo,
   CheckSquare,
@@ -101,10 +100,9 @@ const safeJsonParse = <T,>(raw: string | null): T | undefined => {
 interface AdminDashboardProps {
   onProfileClick: () => void;
   onLogout: () => void;
-  onViewTasks?: () => void; // <-- make optional so parent missing it won't break build
 }
 
-export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminDashboardProps) {
+export function AdminDashboard({ onProfileClick, onLogout }: AdminDashboardProps) {
   const { user } = useAuth();
 
   const currentUserId = useMemo(() => {
@@ -179,12 +177,18 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
   const [taskDueFrom, setTaskDueFrom] = useState<string>("");
   const [taskDueTo, setTaskDueTo] = useState<string>("");
 
+  useEffect(() => {
+    // Legacy value from older UI; keep select stable.
+    if (taskAssigneeFilter === "unassigned") setTaskAssigneeFilter("all");
+  }, [taskAssigneeFilter]);
+
   const [taskBoardTasks, setTaskBoardTasks] = useState<Task[] | null>(null);
   const [taskBoardLoading, setTaskBoardLoading] = useState(false);
   const [taskBoardError, setTaskBoardError] = useState<string | null>(null);
 
   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
   const [showTeamDetailsModal, setShowTeamDetailsModal] = useState(false);
+  const [showTeamViewModal, setShowTeamViewModal] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [teamMembersDraft, setTeamMembersDraft] = useState<string[]>([]);
   const [savingTeamMembers, setSavingTeamMembers] = useState(false);
@@ -387,6 +391,8 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
       setSelectedTask(null);
       setShowCreateTeamModal(false);
       setShowCreateTaskModal(false);
+      closeTeamView();
+      closeTeamDetails();
     };
 
     document.addEventListener("mousedown", onDocMouseDown);
@@ -504,18 +510,13 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
         if (taskDueFrom) params.dueFrom = taskDueFrom;
         if (taskDueTo) params.dueTo = taskDueTo;
 
-        if (taskAssigneeFilter !== "all" && taskAssigneeFilter !== "unassigned") {
+        if (taskAssigneeFilter !== "all") {
           const id = Number(taskAssigneeFilter);
           if (Number.isFinite(id)) params.assignedToId = id;
         }
 
         const data = await taskService.listAllTasks(Object.keys(params).length ? params : undefined);
-        let list = Array.isArray(data) ? data : [];
-
-        // Keep the UI's "Unassigned" option working without adding new backend params.
-        if (taskAssigneeFilter === "unassigned") {
-          list = list.filter((t) => t.assignedToId == null);
-        }
+        const list = Array.isArray(data) ? data : [];
 
         setTaskBoardTasks(list);
       } catch (e) {
@@ -728,10 +729,16 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
   const handleDeleteTeam = async (teamId: string) => {
     setUsersError(null);
     try {
+      const teamTasks = allTasks.filter((t) => String(t.teamId ?? "") === String(teamId));
+      if (teamTasks.length > 0) {
+        setUsersError(
+          `Cannot delete this team because it has ${teamTasks.length} assigned task${teamTasks.length === 1 ? "" : "s"}. Reassign or remove those tasks first.`
+        );
+        return;
+      }
       const existing = teamResponses.find((t) => String(t.id) === String(teamId));
       await teamService.remove(teamId);
       setTeamResponses((prev) => prev.filter((t) => String(t.id) !== String(teamId)));
-      setAllTasks((prev) => prev.map((t) => (t.teamId === teamId ? { ...t, teamId: "" } : t)));
 
       pushActivity({
         type: "TEAM_DELETED",
@@ -741,6 +748,17 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
     } catch (e) {
       setUsersError(getErrorMessage(e));
     }
+  };
+
+  const openTeamView = (teamId: string) => {
+    setUsersError(null);
+    setSelectedTeamId(teamId);
+    setShowTeamViewModal(true);
+  };
+
+  const closeTeamView = () => {
+    setShowTeamViewModal(false);
+    setSelectedTeamId(null);
   };
 
   const openTeamDetails = (teamId: string) => {
@@ -1156,17 +1174,6 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                       <h4 className="mb-2">My Tasks</h4>
                       <p className="text-sm text-slate-600">View and manage your personal tasks</p>
                     </button>
-
-                    <button
-                      onClick={() => (onViewTasks ? onViewTasks() : setShowCreateTaskModal(true))}
-                      className="p-6 bg-linear-to-br from-slate-50 to-slate-100 rounded-xl hover:shadow-lg transition-all text-left group border border-slate-200"
-                    >
-                      <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center mb-4">
-                        <Download className="w-6 h-6 text-slate-500" />
-                      </div>
-                      <h4 className="mb-2">View / Export</h4>
-                      <p className="text-sm text-slate-600">Open task view (or create a task if not wired)</p>
-                    </button>
                   </div>
                 </div>
 
@@ -1232,7 +1239,6 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                           className="h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm min-w-40"
                         >
                           <option value="all">All</option>
-                          <option value="unassigned">Unassigned</option>
                           {dashboardUsers
                             .slice()
                             .sort((a, b) => a.name.localeCompare(b.name))
@@ -1945,9 +1951,31 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                   </Button>
                 </div>
 
+                {usersError && (
+                  <div className="p-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm flex items-start justify-between gap-3">
+                    <div className="min-w-0">{usersError}</div>
+                    <button
+                      type="button"
+                      onClick={() => setUsersError(null)}
+                      className="shrink-0 p-1 rounded hover:bg-red-100"
+                      aria-label="Dismiss"
+                      title="Dismiss"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
                 <div className="grid md:grid-cols-2 gap-4">
                   {teams.map(team => (
-                    <div key={team.id} className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg transition-all">
+                    <div
+                      key={team.id}
+                      className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg transition-all cursor-pointer"
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).closest("[data-action-menu]")) return;
+                        openTeamView(team.id);
+                      }}
+                    >
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
                           <h4 className="font-medium text-lg mb-1">{team.name}</h4>
@@ -1968,13 +1996,23 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                             <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-10">
                               <button
                                 onClick={() => {
+                                  openTeamView(team.id);
+                                  setOpenActionMenu(null);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                              >
+                                <Search className="w-4 h-4" />
+                                View Details
+                              </button>
+                              <button
+                                onClick={() => {
                                   openTeamDetails(team.id);
                                   setOpenActionMenu(null);
                                 }}
                                 className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
                               >
                                 <Edit className="w-4 h-4" />
-                                Edit Team
+                                Edit Members
                               </button>
                               <button
                                 onClick={() => {
@@ -2025,6 +2063,131 @@ export function AdminDashboard({ onProfileClick, onLogout, onViewTasks }: AdminD
                     </div>
                   ))}
                 </div>
+
+                {/* Team View (read-only) Modal */}
+                {showTeamViewModal && selectedTeam && selectedTeamResponse && (
+                  <div
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+                    onClick={closeTeamView}
+                    role="dialog"
+                    aria-modal="true"
+                  >
+                    <div
+                      className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-8 max-h-[90vh] overflow-y-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between mb-6">
+                        <div>
+                          <h3 className="text-2xl">Team Details</h3>
+                          <p className="text-sm text-slate-600">View team information</p>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            closeTeamView();
+                          }}
+                          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                          aria-label="Close"
+                          title="Close"
+                        >
+                          <X className="w-5 h-5 text-slate-600" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-6">
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                            <div className="text-xs text-slate-500 mb-1">Name</div>
+                            <div className="font-medium">{selectedTeam.name}</div>
+                          </div>
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                            <div className="text-xs text-slate-500 mb-1">Leader</div>
+                            <div className="font-medium">{selectedTeam.leader || "—"}</div>
+                          </div>
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 md:col-span-2">
+                            <div className="text-xs text-slate-500 mb-1">Description</div>
+                            <div className="text-sm text-slate-700">{selectedTeam.description || "—"}</div>
+                          </div>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-6">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium">Members</h4>
+                              <span className="text-xs text-slate-500">{selectedTeam.memberIds.length} members</span>
+                            </div>
+
+                            <div className="border border-slate-300 rounded-lg p-4 max-h-80 overflow-y-auto">
+                              {selectedTeam.memberIds.length === 0 ? (
+                                <div className="text-sm text-slate-600">No members.</div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {selectedTeam.memberIds
+                                    .map((id) => dashboardUsers.find((u) => String(u.id) === String(id)))
+                                    .filter(Boolean)
+                                    .map((u) => (
+                                      <div key={u!.id} className="flex items-center justify-between gap-2 p-2 rounded border border-slate-200 bg-white">
+                                        <div className="min-w-0">
+                                          <div className="text-sm font-medium truncate">{u!.name}</div>
+                                          <div className="text-xs text-slate-500 truncate">{u!.email}</div>
+                                        </div>
+                                        {String(u!.id) === String(selectedTeamResponse.teamLeaderId) ? (
+                                          <span className="text-xs px-2 py-0.5 rounded-full border bg-sky-100 text-sky-700 border-sky-200">
+                                            Leader
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium">Team Tasks</h4>
+                              <span className="text-xs text-slate-500">{selectedTeamTasks.length} tasks</span>
+                            </div>
+
+                            <div className="border border-slate-300 rounded-lg p-4 max-h-80 overflow-y-auto">
+                              {selectedTeamTasks.length === 0 ? (
+                                <div className="text-sm text-slate-600">No tasks assigned to this team.</div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {selectedTeamTasks.map((t) => (
+                                    <div key={t.id} className="p-3 rounded-lg border border-slate-200 bg-white">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="font-medium text-sm truncate">{t.title}</div>
+                                        <div className={`text-xs ${getPriorityColor(t.priority)} capitalize`}>{String(t.priority ?? "").toLowerCase()}</div>
+                                      </div>
+                                      <div className="text-xs text-slate-500">Status: {t.status}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            onClick={() => {
+                              const id = selectedTeam.id;
+                              closeTeamView();
+                              openTeamDetails(id);
+                            }}
+                            className="flex-1 bg-purple-500 hover:bg-purple-600 text-white"
+                          >
+                            Edit Members
+                          </Button>
+                          <Button onClick={closeTeamView} variant="outline" className="flex-1">
+                            Close
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Create Team Modal */}
                 {showCreateTeamModal && (
