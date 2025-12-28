@@ -44,7 +44,7 @@ public class AdminController {
     }
 
     /**
-     * NEW: Approves a user's registration.
+     * Approves a user's registration.
      * This endpoint is for changing a user's status from PENDING to ACTIVE.
      */
     @PatchMapping("/{id}/approve")
@@ -54,7 +54,7 @@ public class AdminController {
     }
 
     /**
-     * NEW: Disables a user's account.
+     * Disables a user's account.
      * This endpoint is for changing a user's status to DISABLED.
      */
     @PatchMapping("/{id}/disable")
