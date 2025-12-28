@@ -6,9 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { sanitizeLoginIdentifier } from "@/lib/sanitize";
 
 export const Login = () => {
   const [username, setUsername] = useState("");
+  const [usernameWarning, setUsernameWarning] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
@@ -21,7 +23,9 @@ export const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const result = await login(username, password);
+    const identifier = sanitizeLoginIdentifier(username);
+    if (identifier !== username) setUsername(identifier);
+    const result = await login(identifier, password);
     if (result?.success) {
       const status = typeof result.user?.status === 'string' ? result.user.status.toUpperCase() : undefined;
       if (status === 'PENDING' && result.user?.email) {
@@ -38,14 +42,14 @@ export const Login = () => {
 
     if (result?.code === 'ACCOUNT_PENDING') {
       // Backend rejected login (403) because the account is pending approval.
-      navigate('/pending-approval', { state: { userEmail: username } });
+      navigate('/pending-approval', { state: { userEmail: identifier } });
       return;
     }
 
     if (result?.code === 'ACCOUNT_DISABLED' || result?.code === 'ACCOUNT_NOT_ACTIVE') {
       // Backend rejected login (403) because the account is not active.
       // We don't have the email from the backend in this case; show what the user typed.
-      navigate('/disabled-account', { state: { userEmail: username } });
+      navigate('/disabled-account', { state: { userEmail: identifier } });
     }
   };
 
@@ -102,11 +106,19 @@ export const Login = () => {
                   id="username"
                   type="text"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const clean = sanitizeLoginIdentifier(raw);
+                    setUsername(clean);
+                    setUsernameWarning(raw !== clean ? "Special characters are not allowed." : null);
+                  }}
                   placeholder="Enter your username"
                   className="pl-11"
                 />
               </div>
+              {usernameWarning && (
+                <p className="text-sm text-red-600">{usernameWarning}</p>
+              )}
             </div>
 
             <div className="space-y-2">

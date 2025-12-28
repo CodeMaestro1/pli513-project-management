@@ -3,6 +3,7 @@ import { Mail, ArrowRight, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { sanitizeEmailAtOnly } from "@/lib/sanitize";
 
 interface ForgotPasswordProps {
     onBackToLogin: () => void;
@@ -10,12 +11,18 @@ interface ForgotPasswordProps {
 
 export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
     const [email, setEmail] = useState("");
+    const [emailWarning, setEmailWarning] = useState<string | null>(null);
     const [submitted, setSubmitted] = useState(false);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const cleanEmail = sanitizeEmailAtOnly(email);
+        if (cleanEmail !== email) {
+            setEmail(cleanEmail);
+            setEmailWarning("Only '@', '.', and '+' are allowed as special characters.");
+        }
         // In a real app, you'd send a password reset email here
-        console.log("Password reset requested for:", email);
+        console.log("Password reset requested for:", cleanEmail);
         setSubmitted(true);
     };
 
@@ -100,7 +107,12 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
                                 id="reset-email"
                                 type="email"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={(e) => {
+                                    const raw = e.target.value;
+                                    const clean = sanitizeEmailAtOnly(raw);
+                                    setEmail(clean);
+                                    setEmailWarning(raw !== clean ? "Only '@', '.', and '+' are allowed as special characters." : null);
+                                }}
                                 placeholder="Enter your email address"
                                 className="pl-11"
                                 required
@@ -109,6 +121,9 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
                         <p className="text-sm text-slate-500">
                             We'll send password reset instructions to this email if it exists in our system.
                         </p>
+                        {emailWarning && (
+                            <p className="text-sm text-red-600">{emailWarning}</p>
+                        )}
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-3">

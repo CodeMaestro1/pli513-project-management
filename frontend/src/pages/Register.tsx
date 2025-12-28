@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useNavigate } from "react-router-dom";
 import { authService } from "../services/auth";
+import { sanitizeEmailAtOnly, sanitizePersonName, sanitizeUsername } from "@/lib/sanitize";
 
 // Helper to safely extract error messages without using `any`
 function getErrorMessage(err: unknown): string {
@@ -23,6 +24,10 @@ export function Register() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [usernameWarning, setUsernameWarning] = useState<string | null>(null);
+  const [firstNameWarning, setFirstNameWarning] = useState<string | null>(null);
+  const [lastNameWarning, setLastNameWarning] = useState<string | null>(null);
+  const [emailWarning, setEmailWarning] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,6 +40,28 @@ export function Register() {
     e.preventDefault();
     setError(null);
 
+    const cleanUsername = sanitizeUsername(username);
+    const cleanFirstName = sanitizePersonName(firstName);
+    const cleanLastName = sanitizePersonName(lastName);
+    const cleanEmail = sanitizeEmailAtOnly(email);
+
+    if (cleanUsername !== username) {
+      setUsername(cleanUsername);
+      setUsernameWarning("Special characters are not allowed.");
+    }
+    if (cleanFirstName !== firstName) {
+      setFirstName(cleanFirstName);
+      setFirstNameWarning("Special characters are not allowed.");
+    }
+    if (cleanLastName !== lastName) {
+      setLastName(cleanLastName);
+      setLastNameWarning("Special characters are not allowed.");
+    }
+    if (cleanEmail !== email) {
+      setEmail(cleanEmail);
+      setEmailWarning("Only '@', '.', and '+' are allowed as special characters.");
+    }
+
     if (password !== confirmPassword) {
       setError("Passwords don't match");
       return;
@@ -45,27 +72,31 @@ export function Register() {
       return;
     }
 
-    if (!username.trim()) {
+    if (!cleanUsername) {
       setError("Username is required");
       return;
     }
-    if (!firstName.trim() || !lastName.trim()) {
+    if (!cleanFirstName || !cleanLastName) {
       setError("Both first name and last name are required");
+      return;
+    }
+    if (!cleanEmail) {
+      setError("Email is required");
       return;
     }
 
     try {
       setSubmitting(true);
       await authService.register({
-        username: username.trim(),
-        email: email.trim(),
+        username: cleanUsername,
+        email: cleanEmail,
         password,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
       });
 
       // Navigate to the PendingApproval page after successful registration
-      navigate("/pending-approval", { state: { userEmail: email.trim() } });
+      navigate("/pending-approval", { state: { userEmail: cleanEmail } });
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {
@@ -126,12 +157,20 @@ export function Register() {
                   id="username"
                   type="text"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const clean = sanitizeUsername(raw);
+                    setUsername(clean);
+                    setUsernameWarning(raw !== clean ? "Special characters are not allowed." : null);
+                  }}
                   placeholder="Choose a username"
                   className="pl-10 py-2 text-sm"
                   required
                 />
               </div>
+              {usernameWarning && (
+                <p className="text-xs text-red-600">{usernameWarning}</p>
+              )}
             </div>
 
             <div className="flex gap-3">
@@ -144,12 +183,20 @@ export function Register() {
                     id="firstName"
                     type="text"
                     value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const clean = sanitizePersonName(raw);
+                      setFirstName(clean);
+                      setFirstNameWarning(raw !== clean ? "Special characters are not allowed." : null);
+                    }}
                     placeholder="First Name"
                     className="pl-10 py-2 text-sm"
                     required
                   />
                 </div>
+                {firstNameWarning && (
+                  <p className="text-xs text-red-600">{firstNameWarning}</p>
+                )}
               </div>
 
               {/* Last Name Field */}
@@ -161,12 +208,20 @@ export function Register() {
                     id="lastName"
                     type="text"
                     value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const clean = sanitizePersonName(raw);
+                      setLastName(clean);
+                      setLastNameWarning(raw !== clean ? "Special characters are not allowed." : null);
+                    }}
                     placeholder="Last Name"
                     className="pl-10 py-2 text-sm"
                     required
                   />
                 </div>
+                {lastNameWarning && (
+                  <p className="text-xs text-red-600">{lastNameWarning}</p>
+                )}
               </div>
             </div>
 
@@ -180,12 +235,20 @@ export function Register() {
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const clean = sanitizeEmailAtOnly(raw);
+                    setEmail(clean);
+                    setEmailWarning(raw !== clean ? "Only '@', '.', and '+' are allowed as special characters." : null);
+                  }}
                   placeholder="Enter your email"
                   className="pl-10 py-2 text-sm"
                   required
                 />
               </div>
+              {emailWarning && (
+                <p className="text-xs text-red-600">{emailWarning}</p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -251,7 +314,7 @@ export function Register() {
             </div>
 
             <div className="flex items-start gap-2">
-              <Checkbox 
+              <Checkbox
                 checked={agreeToTerms}
                 onChange={(e) => setAgreeToTerms((e.target as HTMLInputElement).checked)}
                 className="mt-1"
