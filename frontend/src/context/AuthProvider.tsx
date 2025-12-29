@@ -141,7 +141,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     clearError,
     loading,
     error,
-    isAuthenticated: !!token,
+    // Treat the session as authenticated only after we've validated the token
+    // by successfully loading the current user from the backend.
+    isAuthenticated: !!user,
   }), [token, user, loading, error]);
 
   return (
