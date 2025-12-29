@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AuthContext } from './AuthContext';
 import { authService } from '../services/auth';
 import type { LoginResponse } from '../services/auth';
@@ -59,7 +59,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const clearError = () => setError(null);
+  const clearError = useCallback(() => setError(null), []);
+
+  const logout = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    setError(null);
+    localStorage.removeItem('token');
+  }, []);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -87,9 +94,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     void loadUser();
-  }, [token]);
+  }, [token, logout]);
 
-  const login = async (username: string, password: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -113,25 +120,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // For "account not active" cases we redirect to a dedicated page.
       // Avoid persisting an auth error that would show up when navigating back to Login.
       if (status === 403) {
-        setError(null);
         if (code === 'ACCOUNT_PENDING') return { success: false, message: msg, code: 'ACCOUNT_PENDING' as const };
         if (code === 'ACCOUNT_DISABLED') return { success: false, message: msg, code: 'ACCOUNT_DISABLED' as const };
-        return { success: false, message: msg, code: 'ACCOUNT_NOT_ACTIVE' as const };
+        if (code === 'ACCOUNT_NOT_ACTIVE') return { success: false, message: msg, code: 'ACCOUNT_NOT_ACTIVE' as const };
+
+        // Some backends return 403 for bad credentials. If we don't recognize the code,
+        // treat it as invalid credentials so the user gets feedback.
+        const friendly = 'Invalid username or password.';
+        setError(friendly);
+        return { success: false, message: friendly, code: 'INVALID_CREDENTIALS' as const };
       }
+
+      if (status === 401) {
+        const friendly = 'Invalid username or password.';
+        setError(friendly);
+        return { success: false, message: friendly, code: 'INVALID_CREDENTIALS' as const };
+      }
+
       setError(msg);
-      if (status === 401) return { success: false, message: msg, code: 'INVALID_CREDENTIALS' as const };
       return { success: false, message: msg, code: 'UNKNOWN' as const };
     } finally {
       setLoading(false);
     }
-  };
-
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    setError(null);
-    localStorage.removeItem('token');
-  };
+  }, []);
 
   const value = useMemo<AuthContextValue>(() => ({
     token,
@@ -144,11 +155,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Treat the session as authenticated only after we've validated the token
     // by successfully loading the current user from the backend.
     isAuthenticated: !!user,
-  }), [token, user, loading, error]);
+  }), [token, user, login, logout, clearError, loading, error]);
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
