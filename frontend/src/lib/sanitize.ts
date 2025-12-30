@@ -9,7 +9,7 @@ function stripWhitespace(value: string): string {
 }
 
 function keepChars(value: string, allowed: RegExp): string {
-  // `allowed` should be a single-character matcher (e.g. /[a-z]/i or /\p{L}/u)
+  // allowed should be a single-character matcher (e.g. /[a-z]/i or /\p{L}/u)
   // We iterate by Unicode codepoints to keep behavior sane for non-latin names.
   let out = "";
   for (const ch of value) {
