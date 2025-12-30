@@ -45,6 +45,10 @@ export function sanitizeEmailAtOnly(value: string): string {
 }
 
 export function sanitizeLoginIdentifier(value: string): string {
-  // Login accepts either username or email, so we allow the safe email charset.
-  return sanitizeEmail(value);
+  // Login accepts either username or email.
+  // - Emails: normalize to lowercase and allow typical email-safe characters.
+  // - Usernames: preserve case; allow only alphanumerics.
+  const trimmed = value.trim();
+  if (trimmed.includes("@")) return sanitizeEmail(trimmed);
+  return sanitizeUsername(trimmed);
 }
