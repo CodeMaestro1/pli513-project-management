@@ -93,7 +93,7 @@ public class DataInitializer implements CommandLineRunner {
                     .firstName("Ioanna")
                     .lastName("Papadopoulou")
                     .role(Role.MEMBER)
-                    .status(Status.DISABLED) // The crucial ACTIVE status
+                    .status(Status.DISABLED)
                     .createdAt(LocalDateTime.now())
                     .build();
 

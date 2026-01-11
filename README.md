@@ -50,7 +50,6 @@ user-service/src/main/java/com/pms/userservice/config/DataInitializer.java
 
 Refer to this file for details about the pre-configured users and roles.
 
-````markdown
 ## Default Credentials for admin
 
 ```
@@ -58,4 +57,3 @@ Admin User:
 - Username: admin
 - Password: admin123
 ```
-````

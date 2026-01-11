@@ -1120,6 +1120,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                         <option value="">Me (default)</option>
                         {selectedCreateTeam.memberIds
                           .filter((id): id is number => typeof id === "number" && Number.isFinite(id))
+                          .filter((id) => currentUserId == null || Number(id) !== Number(currentUserId))
                           .map((id) => (
                             <option key={String(id)} value={String(id)}>
                               {getDisplayName(id)}
