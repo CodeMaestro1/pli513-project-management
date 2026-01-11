@@ -3,17 +3,17 @@ import './App.css';
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from './context/AuthContext.tsx';
 import { Welcome } from "./pages/Welcome.tsx";
-import { Suspense } from 'react';
+import { Suspense, lazy } from 'react';
 
 import { Login } from "./pages/Login.tsx";
 import { Register } from "./pages/Register.tsx";
 
-const PendingApproval = (await import('react')).lazy(() => import("./pages/PendingApproval.tsx").then((m) => ({ default: m.PendingApproval })));
-const ForgotPassword = (await import('react')).lazy(() => import("./pages/ForgotPassword.tsx").then((m) => ({ default: m.ForgotPassword })));
-const Dashboard = (await import('react')).lazy(() => import("./pages/Dashboard.tsx").then((m) => ({ default: m.Dashboard })));
-const AdminDashboard = (await import('react')).lazy(() => import("./pages/AdminDashBoard.tsx").then((m) => ({ default: m.AdminDashboard })));
-const Profile = (await import('react')).lazy(() => import("./pages/Profile.tsx").then((m) => ({ default: m.Profile })));
-const DisabledAccount = (await import('react')).lazy(() => import("./pages/DisabledAccount.tsx").then((m) => ({ default: m.DisabledAccount })));
+const PendingApproval = lazy(() => import("./pages/PendingApproval.tsx").then((m) => ({ default: m.PendingApproval })));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword.tsx").then((m) => ({ default: m.ForgotPassword })));
+const Dashboard = lazy(() => import("./pages/Dashboard.tsx").then((m) => ({ default: m.Dashboard })));
+const AdminDashboard = lazy(() => import("./pages/AdminDashBoard.tsx").then((m) => ({ default: m.AdminDashboard })));
+const Profile = lazy(() => import("./pages/Profile.tsx").then((m) => ({ default: m.Profile })));
+const DisabledAccount = lazy(() => import("./pages/DisabledAccount.tsx").then((m) => ({ default: m.DisabledAccount })));
 
 function PrivateRoute({ children }: { children: React.JSX.Element }) {
   const { isAuthenticated, user, loading } = useAuth();

@@ -113,6 +113,47 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
     updateTaskStatus: handleUpdateTaskStatusWrapper
   } = useTaskOperations(setTasks, currentUserId);
 
+  const selectedCreateTeam = useMemo(() => {
+    if (!newTask.teamId) return null;
+    return teams.find((t) => String(t.id) === String(newTask.teamId)) ?? null;
+  }, [newTask.teamId, teams]);
+
+  const isCreateTeamLeader = Boolean(
+    selectedCreateTeam && currentUserId != null && Number(selectedCreateTeam.teamLeaderId) === Number(currentUserId)
+  );
+
+  useEffect(() => {
+    // When creating a team task as leader, resolve names for the team members so the assignee dropdown is correct.
+    if (!isAuthenticated) return;
+    if (!selectedCreateTeam) return;
+    if (!isCreateTeamLeader) return;
+    const memberIds = Array.isArray(selectedCreateTeam.memberIds) ? selectedCreateTeam.memberIds : [];
+    const ids = memberIds.filter((id): id is number => typeof id === "number" && Number.isFinite(id));
+    const missing = ids.filter((id) => userNamesById[String(id)] == null);
+    if (missing.length === 0) return;
+
+    const fetchNames = async () => {
+      try {
+        const res = await userService.getPublicNames(missing);
+        if (!Array.isArray(res)) return;
+        setUserNamesById((prev) => {
+          const next = { ...prev };
+          for (const row of res) {
+            const key = String((row as { id: number }).id);
+            const name = (row as { displayName: string }).displayName;
+            if (key && name) next[key] = name;
+          }
+          return next;
+        });
+      } catch {
+        // Non-fatal: fallback labels will be used.
+      }
+    };
+
+    void fetchNames();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, selectedCreateTeam, isCreateTeamLeader]);
+
   const loadTasks = async () => {
     if (!isAuthenticated) return;
     setInitialLoading(true);
@@ -148,6 +189,8 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
   useEffect(() => {
     const fetchTeams = async () => {
       if (!isAuthenticated) return;
+      // React StrictMode runs effects twice in dev; avoid refetching if we already have teams.
+      if (teams.length > 0) return;
       try {
         const res = await teamService.listMyTeams();
         setTeams(Array.isArray(res) ? res : []);
@@ -157,7 +200,8 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
       }
     };
     fetchTeams();
-  }, [isAuthenticated]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, teams.length]);
 
   // Load tasks per team for computing progress / recent projects
   useEffect(() => {
@@ -167,6 +211,11 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
         setTeamTasksById({});
         return;
       }
+
+      // If we already have cached entries for all teams, don't refetch.
+      const allTeamIds = teams.map((t) => String(t.id));
+      const hasAll = allTeamIds.every((id) => teamTasksById[id] != null);
+      if (hasAll) return;
 
       try {
         const entries: Array<[string, Task[]]> = await Promise.all(
@@ -188,7 +237,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
       }
     };
     void fetchTeamTasks();
-  }, [isAuthenticated, teams]);
+  }, [isAuthenticated, teams, teamTasksById]);
 
   // When opening the team details modal, resolve member/leader IDs to safe display names.
   useEffect(() => {
@@ -268,13 +317,18 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
 
   // Handlers using the hook logic
   const handleCreateTask = async () => {
-    await Promise.resolve(handleCreateTaskHook());
-    await loadTasks();
+    const ok = await Promise.resolve(handleCreateTaskHook());
+    // If a due-date filter is active, refresh from server so the filtered view stays correct.
+    if (ok && (taskDueFrom || taskDueTo)) {
+      void loadTasks();
+    }
   };
 
   const handleDeleteTask = async (taskId: string) => {
     await Promise.resolve(handleDeleteTaskWrapper(taskId, selectedTask, setSelectedTask));
-    await loadTasks();
+    if (taskDueFrom || taskDueTo) {
+      void loadTasks();
+    }
   };
 
   // We override the local handleStatusChange to use the hook, 
@@ -282,11 +336,20 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
   const handleStatusChange = (taskId: string, newStatus: Task["status"]) => {
     handleUpdateTaskStatusWrapper(taskId, newStatus, setSelectedTask);
     setOpenDropdown(null);
-    void loadTasks();
+    if (taskDueFrom || taskDueTo) {
+      void loadTasks();
+    }
   };
 
   const canEditTask = (t: Task): boolean => {
-    if (!t.teamId || currentUserId == null) return false;
+    if (currentUserId == null) return false;
+
+    // Personal task (no team): allow the creator to edit.
+    if (!t.teamId) {
+      return Number(t.creatorId) === Number(currentUserId);
+    }
+
+    // Team task: allow team leader to edit.
     const team = teams.find((x) => String(x.id) === String(t.teamId));
     return Boolean(team && Number(team.teamLeaderId) === Number(currentUserId));
   };
@@ -1024,6 +1087,34 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                       ))}
                     </select>
                   </div>
+
+                  {selectedCreateTeam && isCreateTeamLeader && Array.isArray(selectedCreateTeam.memberIds) && selectedCreateTeam.memberIds.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Assign to (optional)</label>
+                      <select
+                        value={String(newTask.assignedToId ?? "")}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (!value) {
+                            setNewTask({ ...newTask, assignedToId: undefined });
+                            return;
+                          }
+                          const id = Number(value);
+                          setNewTask({ ...newTask, assignedToId: Number.isFinite(id) ? id : undefined });
+                        }}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-white"
+                      >
+                        <option value="">Me (default)</option>
+                        {selectedCreateTeam.memberIds
+                          .filter((id): id is number => typeof id === "number" && Number.isFinite(id))
+                          .map((id) => (
+                            <option key={String(id)} value={String(id)}>
+                              {getDisplayName(id)}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2 pt-4">
@@ -1138,6 +1229,11 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
               selectedTask.teamId
                 ? teams.find((t) => String(t.id) === String(selectedTask.teamId))?.name
                 : undefined
+            }
+            teamMemberIds={
+              selectedTask.teamId
+                ? (teams.find((t) => String(t.id) === String(selectedTask.teamId))?.memberIds ?? [])
+                : []
             }
             canEdit={canEditTask(selectedTask)}
             onTaskUpdated={(updated) => {

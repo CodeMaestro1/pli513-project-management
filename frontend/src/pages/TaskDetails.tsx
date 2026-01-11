@@ -16,6 +16,9 @@ interface TaskDetailProps {
   /** Optional team display name for human-friendly rendering. */
   teamName?: string;
 
+  /** Optional team member IDs for assignment UI (leader use-case). */
+  teamMemberIds?: number[];
+
   /** When true, the modal enables editing title/description/status/dueDate. */
   canEdit?: boolean;
 
@@ -23,7 +26,7 @@ interface TaskDetailProps {
   onTaskUpdated?: (updated: Task) => void;
 }
 
-export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdated, teamName }: TaskDetailProps) {
+export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdated, teamName, teamMemberIds }: TaskDetailProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const [userNamesById, setUserNamesById] = useState<Record<string, string>>({});
@@ -37,6 +40,8 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
   const [editDescription, setEditDescription] = useState(task.description);
   const [editStatus, setEditStatus] = useState<TaskStatus>(task.status);
   const [editDueDate, setEditDueDate] = useState(formatLocalDate(task.dueDate));
+  const [editPriority, setEditPriority] = useState<Task["priority"]>(task.priority);
+  const [editAssignedToId, setEditAssignedToId] = useState<number | undefined>(task.assignedToId);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -96,11 +101,18 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
     const ids: number[] = [];
     if (typeof task.creatorId === "number") ids.push(task.creatorId);
     if (typeof task.assignedToId === "number") ids.push(task.assignedToId);
+
+    // If we render an assignee dropdown for a team task, resolve display names
+    // for the selectable team member IDs too.
+    for (const id of teamMemberIds ?? []) {
+      if (typeof id === "number") ids.push(id);
+    }
+
     for (const c of comments) {
       if (typeof c.authorId === "number") ids.push(c.authorId);
     }
     return Array.from(new Set(ids)).filter((x) => Number.isFinite(x));
-  }, [task.creatorId, task.assignedToId, comments]);
+  }, [task.creatorId, task.assignedToId, comments, teamMemberIds]);
 
   useEffect(() => {
     // Keep edit fields in sync when the selected task changes.
@@ -110,6 +122,8 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
     setEditDescription(task.description);
     setEditStatus(task.status);
     setEditDueDate(formatLocalDate(task.dueDate));
+    setEditPriority(task.priority);
+    setEditAssignedToId(task.assignedToId);
   }, [task]);
 
   useEffect(() => {
@@ -159,14 +173,19 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
     setSaving(true);
     try {
       const dueDateIso = editDueDate ? `${editDueDate}T00:00:00` : task.dueDate;
+
+      // Personal tasks (no team) keep their existing assignee.
+      // Team tasks (leader editing) may change assignee.
+      const effectiveAssignedToId = task.teamId ? editAssignedToId : task.assignedToId;
+
       const updated = await taskService.update(task.id, {
         title: editTitle,
         description: editDescription,
         status: editStatus,
         dueDate: dueDateIso,
-        priority: task.priority,
+        priority: editPriority,
         teamId: task.teamId,
-        assignedToId: task.assignedToId,
+        assignedToId: effectiveAssignedToId,
       });
       setIsEditing(false);
       onTaskUpdated?.(updated);
@@ -177,6 +196,8 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
       setSaving(false);
     }
   };
+
+  const canEditAssignee = Boolean(canEdit && task.teamId && Array.isArray(teamMemberIds) && teamMemberIds.length > 0);
 
   const handlePostComment = async () => {
     const message = newComment.trim();
@@ -194,7 +215,7 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col text-left">
         {/* Header */}
         <div className="border-b border-slate-200 p-6">
           <div className="flex items-start justify-between mb-4">
@@ -267,10 +288,27 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
             </div>
 
             {/* Priority */}
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${getPriorityColor(task.priority)}`}>
-              <AlertCircle className="w-4 h-4" />
-              <span className="text-sm">Priority: {getPriorityLabel(task.priority)}</span>
-            </div>
+            {isEditing ? (
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white">
+                <AlertCircle className="w-4 h-4 text-slate-500" />
+                <span className="text-sm text-slate-700">Priority</span>
+                <select
+                  value={editPriority}
+                  onChange={(e) => setEditPriority(e.target.value as Task["priority"])}
+                  className="text-sm border border-slate-300 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  disabled={!canEdit || saving}
+                >
+                  <option value="LOW">{getPriorityLabel("LOW")}</option>
+                  <option value="MEDIUM">{getPriorityLabel("MEDIUM")}</option>
+                  <option value="HIGH">{getPriorityLabel("HIGH")}</option>
+                </select>
+              </div>
+            ) : (
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${getPriorityColor(task.priority)}`}>
+                <AlertCircle className="w-4 h-4" />
+                <span className="text-sm">Priority: {getPriorityLabel(task.priority)}</span>
+              </div>
+            )}
 
             {/* Due Date */}
             <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-lg border border-slate-200">
@@ -326,7 +364,32 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
                   <User className="w-4 h-4 text-slate-500" />
                   <div>
                     <p className="text-xs text-slate-500">Assigned To</p>
-                    <p className="text-sm font-medium">{getDisplayName(task.assignedToId)}</p>
+                    {isEditing && canEditAssignee ? (
+                      <select
+                        value={String(editAssignedToId ?? "")}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (!value) {
+                            setEditAssignedToId(undefined);
+                            return;
+                          }
+                          const num = Number(value);
+                          setEditAssignedToId(Number.isFinite(num) ? num : undefined);
+                        }}
+                        className="text-sm border border-slate-300 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                        disabled={!canEdit || saving}
+                      >
+                        {(teamMemberIds ?? [])
+                          .filter((id): id is number => typeof id === "number" && Number.isFinite(id))
+                          .map((id) => (
+                            <option key={String(id)} value={String(id)}>
+                              {getDisplayName(id)}
+                            </option>
+                          ))}
+                      </select>
+                    ) : (
+                      <p className="text-sm font-medium">{getDisplayName(task.assignedToId)}</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -374,7 +437,7 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="Write a comment…"
-                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               />
               <Button onClick={() => void handlePostComment()} disabled={!newComment.trim()}>
                 Post
