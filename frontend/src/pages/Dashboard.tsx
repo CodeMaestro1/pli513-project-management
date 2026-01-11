@@ -113,6 +113,17 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
     updateTaskStatus: handleUpdateTaskStatusWrapper
   } = useTaskOperations(setTasks, currentUserId);
 
+  //Further evaluation for this addition is needed
+  // Some browsers localize the empty-date hint (e.g., Greek letters). Defaulting the date avoids that.
+  useEffect(() => {
+    if (!showCreateTaskModal) return;
+    setNewTask((prev) => {
+      if (prev.dueDate) return prev;
+      const ymd = new Date().toISOString().slice(0, 10);
+      return { ...prev, dueDate: ymd };
+    });
+  }, [showCreateTaskModal, setNewTask]);
+
   const selectedCreateTeam = useMemo(() => {
     if (!newTask.teamId) return null;
     return teams.find((t) => String(t.id) === String(newTask.teamId)) ?? null;
@@ -200,7 +211,6 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
       }
     };
     fetchTeams();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, teams.length]);
 
   // Load tasks per team for computing progress / recent projects
@@ -571,6 +581,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                     type="date"
                     value={taskDueFrom}
                     onChange={(e) => setTaskDueFrom(e.target.value)}
+                    lang="en-GB"
                     className="h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm"
                   />
                 </div>
@@ -580,6 +591,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                     type="date"
                     value={taskDueTo}
                     onChange={(e) => setTaskDueTo(e.target.value)}
+                    lang="en-GB"
                     className="h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm"
                   />
                 </div>
@@ -1059,6 +1071,7 @@ export function Dashboard({ onProfileClick, onLogout }: DashboardProps) {
                       type="date"
                       value={newTask.dueDate}
                       onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                      lang="en-GB"
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                     />
                   </div>
@@ -1338,28 +1351,30 @@ function LeaderTeamMemberEditor({
   onTeamUpdated: (team: TeamApiResponse) => void;
   getDisplayName: (id?: number) => string;
 }) {
-  const [usernameInput, setUsernameInput] = useState("");
+  const [identifierInput, setIdentifierInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const addMember = async () => {
-    const username = usernameInput.trim();
-    if (!username) {
-      setError("Enter a username.");
+    const identifier = identifierInput.trim();
+    if (!identifier) {
+      setError("Enter a username or email.");
       return;
     }
     setError(null);
     setSaving(true);
     try {
-      const resolved = await userService.resolveUserId(username);
+      const resolved = identifier.includes("@")
+        ? await userService.resolveUserIdByEmail(identifier)
+        : await userService.resolveUserId(identifier);
       const userId = resolved?.id;
       if (!userId || !Number.isFinite(Number(userId))) {
-        throw new Error("Could not resolve username to user id");
+        throw new Error("Could not resolve user to id");
       }
 
       const updated = await teamService.updateMembers(team.id, { action: "add", userId: Number(userId) });
       onTeamUpdated(updated);
-      setUsernameInput("");
+      setIdentifierInput("");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to add member");
     } finally {
@@ -1388,12 +1403,12 @@ function LeaderTeamMemberEditor({
       <div className="space-y-2">
         <div className="flex gap-2">
           <input
-            value={usernameInput}
-            onChange={(e) => setUsernameInput(e.target.value)}
-            placeholder="Add member by username (e.g. johndoe)"
+            value={identifierInput}
+            onChange={(e) => setIdentifierInput(e.target.value)}
+            placeholder="Add member by username or email"
             className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
           />
-          <Button onClick={() => void addMember()} disabled={saving || !usernameInput.trim()}>
+          <Button onClick={() => void addMember()} disabled={saving || !identifierInput.trim()}>
             Add
           </Button>
         </div>

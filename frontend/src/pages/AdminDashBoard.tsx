@@ -1256,6 +1256,7 @@ export function AdminDashboard({ onProfileClick, onLogout }: AdminDashboardProps
                           type="date"
                           value={taskDueFrom}
                           onChange={(e) => setTaskDueFrom(e.target.value)}
+                          lang="en-GB"
                           className="h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm"
                         />
                       </div>
@@ -1266,6 +1267,7 @@ export function AdminDashboard({ onProfileClick, onLogout }: AdminDashboardProps
                           type="date"
                           value={taskDueTo}
                           onChange={(e) => setTaskDueTo(e.target.value)}
+                          lang="en-GB"
                           className="h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm"
                         />
                       </div>
@@ -1709,6 +1711,7 @@ export function AdminDashboard({ onProfileClick, onLogout }: AdminDashboardProps
                               type="date"
                               value={newTask.dueDate}
                               onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                              lang="en-GB"
                               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                             />
                           </div>

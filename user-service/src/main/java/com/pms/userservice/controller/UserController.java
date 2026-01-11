@@ -77,13 +77,23 @@ public class UserController {
     }
 
     /**
-     * Resolves a username to a user id.
+     * Resolves a username OR email to a user id.
      * Used by team leaders/admins when adding members.
      */
     @GetMapping("/resolve-id")
     @PreAuthorize("hasAnyRole('LEADER','ADMIN')")
-    public ResponseEntity<ResolveUserIdResponse> resolveUserId(@RequestParam("username") String username) {
-        Long id = userService.getUserIdByUsername(username);
+    public ResponseEntity<ResolveUserIdResponse> resolveUserId(
+            @RequestParam(value = "username", required = false) String username,
+            @RequestParam(value = "email", required = false) String email
+    ) {
+        boolean hasUsername = username != null && !username.isBlank();
+        boolean hasEmail = email != null && !email.isBlank();
+        if (hasUsername == hasEmail) {
+            // Either both were provided or neither was provided.
+            return ResponseEntity.badRequest().body(ResolveUserIdResponse.builder().id(null).build());
+        }
+
+        Long id = hasEmail ? userService.getUserIdByEmail(email) : userService.getUserIdByUsername(username);
         return ResponseEntity.ok(ResolveUserIdResponse.builder().id(id).build());
     }
 }

@@ -34,6 +34,7 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [newComment, setNewComment] = useState("");
+  const [commentPosting, setCommentPosting] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
@@ -201,8 +202,9 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
 
   const handlePostComment = async () => {
     const message = newComment.trim();
-    if (!message) return;
+    if (!message || commentPosting) return;
     setCommentsError(null);
+    setCommentPosting(true);
     try {
       const created = await taskService.addComment(task.id, { message });
       setComments((prev) => [created as TaskComment, ...prev]);
@@ -210,6 +212,8 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to post comment";
       setCommentsError(msg);
+    } finally {
+      setCommentPosting(false);
     }
   };
 
@@ -318,6 +322,7 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
                   type="date"
                   value={editDueDate}
                   onChange={(e) => setEditDueDate(e.target.value)}
+                  lang="en-GB"
                   className="text-sm text-slate-700 bg-transparent border border-slate-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 />
               ) : (
@@ -433,14 +438,22 @@ export function TaskDetail({ task, onClose, onStatusChange, canEdit, onTaskUpdat
             )}
 
             <div className="flex gap-2">
-              <input
+              <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter submits, Shift+Enter inserts a newline.
+                  if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+                  e.preventDefault();
+                  void handlePostComment();
+                }}
                 placeholder="Write a comment…"
-                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                rows={2}
+                disabled={commentPosting}
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-none"
               />
-              <Button onClick={() => void handlePostComment()} disabled={!newComment.trim()}>
-                Post
+              <Button onClick={() => void handlePostComment()} disabled={commentPosting || !newComment.trim()}>
+                {commentPosting ? "Posting…" : "Post"}
               </Button>
             </div>
 

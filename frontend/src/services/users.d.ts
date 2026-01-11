@@ -11,5 +11,6 @@ declare module "@/services/users" {
   export declare const userService: {
     getPublicNames(ids: Array<number | string>): Promise<PublicUserName[]>;
     resolveUserId(username: string): Promise<ResolveUserIdResponse>;
+    resolveUserIdByEmail(email: string): Promise<ResolveUserIdResponse>;
   };
 }

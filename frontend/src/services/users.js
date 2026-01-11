@@ -22,4 +22,15 @@ export const userService = {
     const res = await userApi.get('/api/v1/users/resolve-id', { params: { username: u } });
     return res.data;
   },
+
+  /**
+   * Resolve an email to a user id.
+   * Backend: GET /api/v1/users/resolve-id?email=...
+   */
+  async resolveUserIdByEmail(email) {
+    const e = typeof email === 'string' ? email.trim() : '';
+    if (!e) throw new Error('resolveUserIdByEmail requires email');
+    const res = await userApi.get('/api/v1/users/resolve-id', { params: { email: e } });
+    return res.data;
+  },
 };

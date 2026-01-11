@@ -176,6 +176,18 @@ public class UserServiceImpl implements UserService {
         return user.getId();
     }
 
+    @Override
+    public Long getUserIdByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+
+        String normalized = email.trim();
+        User user = userRepository.findByEmailIgnoreCase(normalized)
+                .orElseThrow(() -> new UserNotFoundException("User not found with email: " + email));
+        return user.getId();
+    }
+
     private RegisterResponse toUserResponse(User user) {
         return RegisterResponse.builder()
                 .id(user.getId())

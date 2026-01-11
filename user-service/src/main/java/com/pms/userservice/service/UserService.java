@@ -40,4 +40,10 @@ public interface UserService {
      */
     Long getUserIdByUsername(String username);
 
+    /**
+     * Resolves an email to a user id.
+     * Intended for leader/admin workflows like adding team members.
+     */
+    Long getUserIdByEmail(String email);
+
 }
